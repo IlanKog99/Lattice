@@ -111,13 +111,22 @@ GridView {
 
 /* ---- find bar ---- */
 #findbar {
-    height: 2;
+    height: auto;
     dock: bottom;
-    layout: horizontal;
+    margin-bottom: 2;          /* sit above the status line, not over it */
+    layout: vertical;
     background: #11161f;
     border-top: heavy #2a7d8c;
     padding: 0 2;
     display: none;
+}
+#findhint {
+    height: 1;
+    color: #6f93a0;
+}
+#findrow {
+    height: 1;
+    layout: horizontal;
 }
 #findprompt {
     width: 7;
@@ -139,6 +148,7 @@ GridView {
     height: auto;
     max-height: 12;
     dock: bottom;
+    margin-bottom: 2;          /* sit above the status line, not over it */
     layout: vertical;
     background: #11161f;
     border-top: heavy #ff6a3d;

@@ -77,9 +77,15 @@ class LatticeApp(App):
         )
         yield GridView(id="grid")
         yield Static(HINTS, id="status")
-        with Horizontal(id="findbar"):
-            yield Static("find ›", id="findprompt")
-            yield FindInput(id="findinput")
+        with Vertical(id="findbar"):
+            yield Static(
+                "type to match labels   ·   Tab next   ·   Shift+Tab prev   "
+                "·   Enter keep   ·   Esc cancel",
+                id="findhint",
+            )
+            with Horizontal(id="findrow"):
+                yield Static("find ›", id="findprompt")
+                yield FindInput(id="findinput")
         with Vertical(id="cmdbar"):
             yield OptionList(id="cmdmenu")
             with Horizontal(id="cmdrow"):
@@ -207,7 +213,6 @@ class LatticeApp(App):
         field.value = ""
         self.grid_view.start_find()
         field.focus()
-        self.set_status("Find: type to match labels · Tab next · Enter keep · Esc cancel")
 
     def _close_find(self, restore: bool) -> None:
         self.query_one("#findbar").display = False
