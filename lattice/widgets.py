@@ -188,6 +188,8 @@ class GridView(VerticalScroll):
         self.matches: list[int] = []
         self.match_pos = 0
         self._find_origin = (0, 0)
+        self._peek_cell: "Cell | None" = None
+        self._peek_timer = None
 
     @property
     def grid(self):
@@ -365,6 +367,28 @@ class GridView(VerticalScroll):
         self.focus()
         self.app.set_status("Cleared (undo with /undo)")
 
+    # --- peek (hold v to reveal the current cell) ----------------------
+    PEEK_HOLD = 0.7  # re-mask this long after the last v (i.e. after release)
+
+    def peek(self) -> None:
+        cell = self.current()
+        if cell is None:
+            return
+        # Holding v repeats the key; if the cursor changed, restore the old one.
+        if self._peek_cell is not None and self._peek_cell is not cell:
+            self._peek_cell.show(getattr(self.app, "revealed", False))
+        cell.show(True)
+        self._peek_cell = cell
+        if self._peek_timer is not None:
+            self._peek_timer.stop()
+        self._peek_timer = self.set_timer(self.PEEK_HOLD, self._end_peek)
+
+    def _end_peek(self) -> None:
+        if self._peek_cell is not None:
+            self._peek_cell.show(getattr(self.app, "revealed", False))
+            self._peek_cell = None
+        self._peek_timer = None
+
     # --- find ----------------------------------------------------------
     def start_find(self) -> None:
         self.find_mode = True
@@ -432,6 +456,9 @@ class GridView(VerticalScroll):
         elif key == "f":
             event.stop()
             self.app.open_find()
+        elif key == "v":
+            event.stop()
+            self.peek()
         elif key in ("delete", "backspace"):
             event.stop()
             self.clear()

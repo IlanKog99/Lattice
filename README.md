@@ -38,6 +38,7 @@ reveal a value to copy it.
 | `Enter` or `Ctrl+C` | Copy the selected cell to the clipboard |
 | `E` | Edit the selected cell in place (`Enter` saves, `Esc` cancels) |
 | `F` | Find: jump to a row by typing part of its label (see below) |
+| `V` (hold) | Peek: reveal just the selected cell while held; it re-masks shortly after you let go |
 | `Del` | Clear the selected cell (same as editing it and deleting everything) |
 | `/` | Open the command bar (`Enter` runs, `Esc` closes) |
 | `Q` | Quit |
@@ -69,7 +70,7 @@ also click an entry.
 | `/remove` | Hide a row or column (asks **Yes / No** first). Nothing is deleted — it is only removed from view, so it can come back later via `/undo`. |
 | `/mass` | Update many cells of one row or column in order. Type each new value and press `Enter`; an **empty line finishes** and saves. |
 | `/undo` | Undo the last change (edit, clear, add, hide, or mass update). Can be repeated to step further back. |
-| `/visible` | Reveal all values for **1 minute**, then they re-mask automatically. |
+| `/visible` | Reveal **all** values for **1 minute**, then they re-mask automatically. (To peek a single cell instead, hold `V`.) |
 | `/visible N` | Reveal for `N` minutes instead (e.g. `/visible 5`). |
 | `/hide` | Re-mask values immediately, before the timer runs out. |
 

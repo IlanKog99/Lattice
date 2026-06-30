@@ -24,6 +24,7 @@ HINTS = "   ".join(
         _k("enter/ctrl+c", "copy"),
         _k("e", "edit"),
         _k("f", "find"),
+        _k("v", "peek"),
         _k("del", "clear"),
         _k("/", "commands"),
         _k("q", "quit"),
