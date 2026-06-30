@@ -79,8 +79,11 @@ class LatticeApp(App):
         yield Static(HINTS, id="status")
         with Vertical(id="findbar"):
             yield Static(
-                "type to match labels   ·   Tab next   ·   Shift+Tab prev   "
-                "·   Enter keep   ·   Esc cancel",
+                "[#7d8b95]type to match labels[/]   ·   "
+                "[#56c5d6 b]Tab[/] [#7d8b95]next[/]   ·   "
+                "[#56c5d6 b]Shift+Tab[/] [#7d8b95]prev[/]   ·   "
+                "[#56c5d6 b]Enter[/] [#7d8b95]keep[/]   ·   "
+                "[#56c5d6 b]Esc[/] [#7d8b95]cancel[/]",
                 id="findhint",
             )
             with Horizontal(id="findrow"):
