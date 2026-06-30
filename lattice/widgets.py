@@ -267,10 +267,16 @@ class GridView(VerticalScroll):
 
     def _select(self, coord, on: bool) -> None:
         cell = self.cells.get(coord)
-        if cell is not None:
-            cell.select(on)
-            if on:
-                self.call_after_refresh(self.scroll_to_widget, cell)
+        if cell is None:
+            return
+        cell.select(on)
+        # Faintly band the whole row so it's clear which row the cursor is on.
+        vr = coord[0]
+        for (r, _c), other in self.cells.items():
+            if r == vr:
+                other.set_class(on, "rowsel")
+        if on:
+            self.call_after_refresh(self.scroll_to_widget, cell)
 
     def current(self) -> Cell | None:
         return self.cells.get(self.cursor)

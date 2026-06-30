@@ -60,6 +60,15 @@ GridView {
     text-style: bold;
 }
 
+/* faint band across the cursor's row (declared before .sel/.match so those
+   stronger states win on the cells that carry both classes) */
+.cell.rowsel {
+    background: #161d29;
+}
+.cell.rowsel.label .celltext {
+    color: #c4ccd6;
+}
+
 /* cursor */
 .cell.sel {
     background: #ff6a3d;

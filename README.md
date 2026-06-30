@@ -20,6 +20,9 @@ The left column is the **label** column (a row name, like the headers — it is
 never selectable and always shown). Every other column holds a free-form value.
 The highlighted cell is the cursor.
 
+The cursor's whole row is given a faint band so you can easily see which row
+(and which label) the selected cell belongs to.
+
 **Values are masked (`••••••`) by default** and only shown on demand with
 `/visible` (see below). Copying still works while masked — you never have to
 reveal a value to copy it.
