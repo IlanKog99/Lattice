@@ -68,7 +68,9 @@ class LatticeApp(App):
             yield OptionList(id="cmdmenu")
             with Horizontal(id="cmdrow"):
                 yield Static("›", id="cmdprompt")
-                yield CommandInput(id="cmdinput")
+                # select_on_focus=False so the leading "/" isn't highlighted
+                # and overwritten by the first keystroke.
+                yield CommandInput(id="cmdinput", select_on_focus=False)
 
     def on_mount(self) -> None:
         if not self.grid.columns:
