@@ -88,13 +88,15 @@ GridView {
     color: #ffffff;
 }
 
-/* ---- status line ---- */
+/* ---- status line ----
+   Height must leave a row for text: with border-box sizing a top border would
+   consume the single row, so we separate with background + an inner top rule. */
 #status {
-    height: 1;
+    height: 2;
     dock: bottom;
     padding: 0 3;
     background: #11161f;
-    color: #6b7787;
+    color: #aeb8c4;
     border-top: solid #1a212e;
 }
 
@@ -153,7 +155,7 @@ StepModal {
 .modal {
     width: 64;
     height: auto;
-    max-height: 80%;
+    max-height: 90%;
     padding: 1 2;
     background: #11161f;
     border: heavy #ff6a3d;
@@ -171,10 +173,12 @@ StepModal {
     background: #11161f;
     border: none;
     height: auto;
-    max-height: 14;
+    max-height: 80vh;          /* long lists reach almost to the screen edges */
     padding: 0;
+    scrollbar-size-vertical: 1;
 }
-.modal OptionList > .option-list--option-highlighted {
+.modal OptionList > .option-list--option-highlighted,
+.modal OptionList:focus > .option-list--option-highlighted {
     background: #ff6a3d;
     color: #0a0d13;
     text-style: bold;
@@ -183,4 +187,15 @@ StepModal {
     border: tall #2a3343;
     background: #0a0d13;
     color: #ffffff;
+}
+
+/* yes / no confirmation */
+.confirm-row {
+    height: auto;
+    align: left middle;
+    margin-top: 1;
+}
+.confirm-row Button {
+    margin: 0 2 0 0;
+    min-width: 10;
 }

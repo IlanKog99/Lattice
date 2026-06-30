@@ -14,13 +14,24 @@ from . import APP_NAME, __version__, store
 from .screens import AddScreen, MassScreen, RemoveScreen
 from .widgets import CommandInput, GridView
 
-HINTS = (
-    "↑↓←→ / wasd  move   ·   enter  copy   ·   f  edit   ·   "
-    "/visible  reveal   ·   /  command   ·   q  quit"
+def _k(key: str, label: str) -> str:
+    return f"[#ff6a3d b]{key}[/] [#aeb8c4]{label}[/]"
+
+
+HINTS = "   ".join(
+    [
+        _k("↑↓←→/wasd", "move"),
+        _k("enter/ctrl+c", "copy"),
+        _k("f", "edit"),
+        _k("del", "clear"),
+        _k("/", "commands"),
+        _k("q", "quit"),
+    ]
 )
 
 DEFAULT_REVEAL_MINUTES = 1
 MAX_REVEAL_MINUTES = 600
+UNDO_DEPTH = 100
 
 _COMMANDS = {
     "add": AddScreen,
@@ -33,6 +44,7 @@ COMMAND_INFO = [
     ("add", "Add a row or column"),
     ("remove", "Hide a row or column"),
     ("mass", "Update many cells in order"),
+    ("undo", "Undo the last change"),
     ("visible", "Reveal values (e.g. /visible 5)"),
     ("hide", "Mask values now"),
     ("quit", "Exit Lattice"),
@@ -46,7 +58,6 @@ class LatticeApp(App):
 
     BINDINGS = [
         ("q", "quit", "Quit"),
-        ("ctrl+c", "quit", "Quit"),
     ]
 
     def __init__(self) -> None:
@@ -54,6 +65,7 @@ class LatticeApp(App):
         self.grid = store.load()
         self.revealed = False
         self._reveal_timer = None
+        self._undo: list = []
 
     # --- layout --------------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -84,6 +96,24 @@ class LatticeApp(App):
     def persist(self) -> None:
         """Auto-save: called after every change that touches the store."""
         store.save(self.grid)
+
+    # --- undo ----------------------------------------------------------
+    def push_undo(self) -> None:
+        """Snapshot the grid *before* a change, so /undo can roll it back."""
+        from .models import Grid
+
+        self._undo.append(Grid.from_dict(self.grid.to_dict()))
+        if len(self._undo) > UNDO_DEPTH:
+            self._undo.pop(0)
+
+    def undo(self) -> None:
+        if not self._undo:
+            self.set_status("Nothing to undo")
+            return
+        self.grid = self._undo.pop()
+        self.persist()
+        self.refresh_grid()
+        self.set_status("Undid last change")
 
     def refresh_grid(self, _result=None) -> None:
         self.grid_view.rebuild()
@@ -183,6 +213,9 @@ class LatticeApp(App):
             return
         if name == "hide":
             self.hide_values()
+            return
+        if name == "undo":
+            self.undo()
             return
         screen = _COMMANDS.get(name)
         if screen is None:

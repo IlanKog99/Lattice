@@ -123,6 +123,12 @@ class Cell(Container):
     def select(self, on: bool) -> None:
         self.set_class(on, "sel")
 
+    def on_click(self) -> None:
+        # Clicking a value cell teleports the cursor there. Labels aren't
+        # selectable, so clicks on them are ignored.
+        if not self._is_label:
+            self.app.grid_view.set_cursor(self.vrow, self.vcol)
+
     def flash(self) -> None:
         """Briefly highlight the cell to confirm a copy."""
         self.add_class("copied")
@@ -246,12 +252,26 @@ class GridView(VerticalScroll):
         if not nav:
             return
         r, c = self.cursor
-        nr = max(0, min(len(self.vrows) - 1, r + dr))
-        nc = max(nav[0], min(nav[-1], c + dc))
+        # Wrap around at every edge.
+        nr = (r + dr) % len(self.vrows)
+        pos = nav.index(c) if c in nav else 0
+        nc = nav[(pos + dc) % len(nav)]
         if (nr, nc) != (r, c):
             self._select((r, c), False)
             self.cursor = (nr, nc)
             self._select((nr, nc), True)
+
+    def set_cursor(self, vr: int, vc: int) -> None:
+        """Move the selection to a specific cell (used by mouse clicks)."""
+        if self.editing:
+            return
+        if vc not in self._nav_cols() or not (0 <= vr < len(self.vrows)):
+            return
+        if (vr, vc) != self.cursor:
+            self._select(self.cursor, False)
+            self.cursor = (vr, vc)
+            self._select((vr, vc), True)
+        self.focus()
 
     # --- actions -------------------------------------------------------
     def copy(self) -> None:
@@ -277,6 +297,7 @@ class GridView(VerticalScroll):
         ci = self.vcols[self.cursor[1]]
 
         def submit(value: str) -> None:
+            self.app.push_undo()
             self.grid.set_cell(ri, ci, value)
             self.app.persist()
             self.editing = False
@@ -292,6 +313,22 @@ class GridView(VerticalScroll):
 
         cell.begin_edit(submit, cancel)
 
+    def clear(self) -> None:
+        """Empty the selected cell (like editing it and deleting everything)."""
+        if self.editing:
+            return
+        cell = self.current()
+        if cell is None or not cell.value:
+            return
+        self.app.push_undo()
+        ri = self.vrows[self.cursor[0]]
+        ci = self.vcols[self.cursor[1]]
+        self.grid.set_cell(ri, ci, "")
+        self.app.persist()
+        self.rebuild()
+        self.focus()
+        self.app.set_status("Cleared (undo with /undo)")
+
     # --- keys ----------------------------------------------------------
     def on_key(self, event) -> None:
         if self.editing:
@@ -300,12 +337,15 @@ class GridView(VerticalScroll):
         if key in _MOVES:
             event.stop()
             self.move(*_MOVES[key])
-        elif key == "enter":
+        elif key in ("enter", "ctrl+c"):
             event.stop()
             self.copy()
         elif key == "f":
             event.stop()
             self.edit()
+        elif key in ("delete", "backspace"):
+            event.stop()
+            self.clear()
         elif key == "slash":
             event.stop()
             self.app.open_command()

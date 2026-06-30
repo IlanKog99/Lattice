@@ -26,7 +26,9 @@ Do not add unlock prompts, key derivation, or claims of real security.
    `/add`, `/remove`, `/mass`) must call `app.persist()` immediately. There is
    no manual save.
 4. **Nothing is truly deleted.** `/remove` only sets a `hidden` flag on a row or
-   column; the data stays in the store.
+   column; the data stays in the store. `/remove` asks for Yes/No confirmation
+   first. Every mutation calls `app.push_undo()` *before* changing the grid so
+   `/undo` can roll it back (in-session only; the undo stack isn't persisted).
 5. **`grid.dat` is git-ignored** and must stay that way.
 6. **Neutral vocabulary.** Keep the domain language generic (grid, cell, value,
    label, column, row, entry). Avoid framing the contents as credentials in

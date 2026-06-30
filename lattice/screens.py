@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from typing import Callable
 
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import OptionList, Static
+from textual.widgets import Button, OptionList, Static
 from textual.widgets.option_list import Option
 
 from .widgets import BoxInput
@@ -60,6 +60,20 @@ class StepModal(ModalScreen):
 
         field = BoxInput("", deferred, self.cancel, placeholder=placeholder, classes="modalinput")
         self._swap(Static(prompt, classes="prompt"), field, focus=field)
+
+    def ask_confirm(self, prompt: str, on_yes: Callable[[], None]) -> None:
+        self._on_yes = on_yes
+        yes = Button("Yes", id="yes", variant="error")
+        no = Button("No", id="no", variant="primary")
+        buttons = Horizontal(yes, no, classes="confirm-row")
+        # Focus "No" by default so a stray Enter doesn't confirm.
+        self._swap(Static(prompt, classes="prompt"), buttons, focus=no)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "yes":
+            self.call_after_refresh(self._on_yes)
+        else:
+            self.cancel()
 
     # --- events --------------------------------------------------------
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
@@ -127,6 +141,7 @@ class AddScreen(StepModal):
         self._collect()
 
     def _commit(self) -> None:
+        self.app.push_undo()
         grid = self.app.grid
         if self.kind == "row":
             cells = [""] * len(grid.columns)
@@ -162,11 +177,21 @@ class RemoveScreen(StepModal):
         self.ask_choice(f"Which {kind} should be hidden?", items, self._picked)
 
     def _picked(self, index: int) -> None:
+        self._index = index
+        grid = self.app.grid
+        label = grid.rows[index].cells[0] if self.kind == "row" else grid.columns[index].name
+        self.ask_confirm(
+            f"Hide {self.kind} “{label}”?\nIt stays in the store and can be brought back with /undo.",
+            self._do_hide,
+        )
+
+    def _do_hide(self) -> None:
+        self.app.push_undo()
         grid = self.app.grid
         if self.kind == "row":
-            grid.rows[index].hidden = True
+            grid.rows[self._index].hidden = True
         else:
-            grid.columns[index].hidden = True
+            grid.columns[self._index].hidden = True
         self.finish(True)
 
 
@@ -202,6 +227,7 @@ class MassScreen(StepModal):
             self.labels = [grid.rows[ri].cells[0] for ri in self.fields]
         self.idx = 0
         self.changed = False
+        self._snapped = False
         self._prompt()
 
     def _current(self, i: int) -> str:
@@ -225,6 +251,9 @@ class MassScreen(StepModal):
         if value == "":  # empty line acts as EOF
             self.finish(self.changed)
             return
+        if not self._snapped:  # snapshot once, before the first change
+            self.app.push_undo()
+            self._snapped = True
         grid = self.app.grid
         if self.kind == "row":
             grid.rows[self.target].cells[self.fields[self.idx]] = value

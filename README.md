@@ -30,14 +30,17 @@ reveal a value to copy it.
 
 | Key | Action |
 |-----|--------|
-| Arrow keys / `W` `A` `S` `D` | Move the cursor |
-| `Enter` | Copy the selected cell to the clipboard |
+| Arrow keys / `W` `A` `S` `D` | Move the cursor (wraps around at the edges) |
+| Mouse click | Jump the cursor straight to a value cell |
+| `Enter` or `Ctrl+C` | Copy the selected cell to the clipboard |
 | `F` | Edit the selected cell in place (`Enter` saves, `Esc` cancels) |
+| `Del` | Clear the selected cell (same as editing it and deleting everything) |
 | `/` | Open the command bar (`Enter` runs, `Esc` closes) |
-| `Q` / `Ctrl+C` | Quit |
+| `Q` | Quit |
 
-Every edit, add, hide, or mass update is **saved automatically** the moment it
-happens. There is no separate "save" step.
+The label column (left) is never selectable. Every edit, clear, add, hide, or
+mass update is **saved automatically** the moment it happens — there is no
+separate "save" step. Changed something by mistake? Run `/undo`.
 
 ### Commands (type after `/`)
 
@@ -49,8 +52,9 @@ also click an entry.
 | Command | What it does |
 |---------|--------------|
 | `/add` | Add a new row or column. Asks for a name, then walks you through each field. |
-| `/remove` | Hide a row or column. Nothing is deleted — it is only removed from view, so it can come back later. |
+| `/remove` | Hide a row or column (asks **Yes / No** first). Nothing is deleted — it is only removed from view, so it can come back later via `/undo`. |
 | `/mass` | Update many cells of one row or column in order. Type each new value and press `Enter`; an **empty line finishes** and saves. |
+| `/undo` | Undo the last change (edit, clear, add, hide, or mass update). Can be repeated to step further back. |
 | `/visible` | Reveal all values for **1 minute**, then they re-mask automatically. |
 | `/visible N` | Reveal for `N` minutes instead (e.g. `/visible 5`). |
 | `/hide` | Re-mask values immediately, before the timer runs out. |
