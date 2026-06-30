@@ -158,13 +158,22 @@ class GridView(VerticalScroll):
 
         self.mount(*rows)
 
-        if self.vrows and self.vcols:
+        nav = self._nav_cols()
+        if self.vrows and nav:
             r = min(self.cursor[0], len(self.vrows) - 1)
-            c = min(self.cursor[1], len(self.vcols) - 1)
+            c = min(max(self.cursor[1], nav[0]), nav[-1])
             self.cursor = (r, c)
             self._select(self.cursor, True)
 
     # --- selection -----------------------------------------------------
+    def _nav_cols(self) -> list[int]:
+        """Visible column positions the cursor may land on.
+
+        The label column (actual index 0) is a row identifier, like a header,
+        so it is never selectable.
+        """
+        return [vc for vc in range(len(self.vcols)) if self.vcols[vc] != 0]
+
     def _select(self, coord, on: bool) -> None:
         cell = self.cells.get(coord)
         if cell is not None:
@@ -178,9 +187,12 @@ class GridView(VerticalScroll):
     def move(self, dr: int, dc: int) -> None:
         if self.editing or not self.vrows:
             return
+        nav = self._nav_cols()
+        if not nav:
+            return
         r, c = self.cursor
         nr = max(0, min(len(self.vrows) - 1, r + dr))
-        nc = max(0, min(len(self.vcols) - 1, c + dc))
+        nc = max(nav[0], min(nav[-1], c + dc))
         if (nr, nc) != (r, c):
             self._select((r, c), False)
             self.cursor = (nr, nc)
