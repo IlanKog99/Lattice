@@ -12,7 +12,7 @@ from textual.widgets.option_list import Option
 
 from . import APP_NAME, __version__, store
 from .screens import AddScreen, MassScreen, RemoveScreen
-from .widgets import CommandInput, GridView
+from .widgets import CommandInput, FindInput, GridView
 
 def _k(key: str, label: str) -> str:
     return f"[#ff6a3d b]{key}[/] [#aeb8c4]{label}[/]"
@@ -22,7 +22,8 @@ HINTS = "   ".join(
     [
         _k("↑↓←→/wasd", "move"),
         _k("enter/ctrl+c", "copy"),
-        _k("f", "edit"),
+        _k("e", "edit"),
+        _k("f", "find"),
         _k("del", "clear"),
         _k("/", "commands"),
         _k("q", "quit"),
@@ -76,6 +77,9 @@ class LatticeApp(App):
         )
         yield GridView(id="grid")
         yield Static(HINTS, id="status")
+        with Horizontal(id="findbar"):
+            yield Static("find ›", id="findprompt")
+            yield FindInput(id="findinput")
         with Vertical(id="cmdbar"):
             yield OptionList(id="cmdmenu")
             with Horizontal(id="cmdrow"):
@@ -193,6 +197,32 @@ class LatticeApp(App):
     def on_input_changed(self, event) -> None:
         if event.input.id == "cmdinput":
             self._filter_menu(event.value)
+        elif event.input.id == "findinput":
+            self.grid_view.update_find(event.value)
+
+    # --- find ----------------------------------------------------------
+    def open_find(self) -> None:
+        self.query_one("#findbar").display = True
+        field = self.query_one("#findinput", FindInput)
+        field.value = ""
+        self.grid_view.start_find()
+        field.focus()
+        self.set_status("Find: type to match labels · Tab next · Enter keep · Esc cancel")
+
+    def _close_find(self, restore: bool) -> None:
+        self.query_one("#findbar").display = False
+        self.query_one("#findinput", FindInput).value = ""
+        self.grid_view.clear_find(restore)
+        self.grid_view.focus()
+
+    def find_accept(self) -> None:
+        self._close_find(restore=False)
+
+    def find_cancel(self) -> None:
+        self._close_find(restore=True)
+
+    def find_next(self, delta: int) -> None:
+        self.grid_view.find_next(delta)
 
     def on_option_list_option_selected(self, event) -> None:
         # A click on a menu entry runs that command.

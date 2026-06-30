@@ -33,7 +33,8 @@ reveal a value to copy it.
 | Arrow keys / `W` `A` `S` `D` | Move the cursor (wraps around at the edges) |
 | Mouse click | Jump the cursor straight to a value cell |
 | `Enter` or `Ctrl+C` | Copy the selected cell to the clipboard |
-| `F` | Edit the selected cell in place (`Enter` saves, `Esc` cancels) |
+| `E` | Edit the selected cell in place (`Enter` saves, `Esc` cancels) |
+| `F` | Find: jump to a row by typing part of its label (see below) |
 | `Del` | Clear the selected cell (same as editing it and deleting everything) |
 | `/` | Open the command bar (`Enter` runs, `Esc` closes) |
 | `Q` | Quit |
@@ -41,6 +42,16 @@ reveal a value to copy it.
 The label column (left) is never selectable. Every edit, clear, add, hide, or
 mass update is **saved automatically** the moment it happens — there is no
 separate "save" step. Changed something by mistake? Run `/undo`.
+
+### Find mode (`F`)
+
+Press `F` and start typing — Lattice matches your text against the **label
+column** and highlights every matching row in teal (distinct from the ember
+cursor). The cursor jumps to the first match's leftmost cell. `Tab` cycles to
+the next match (`Shift+Tab` for the previous). `Enter` keeps the cursor on the
+current match; `Esc` cancels and returns it to where you started.
+
+Example: typing `ha` lands you on the `IL-HA` row.
 
 ### Commands (type after `/`)
 

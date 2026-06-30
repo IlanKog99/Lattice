@@ -51,6 +51,32 @@ class BoxInput(Input):
             self._on_cancel()
 
 
+class FindInput(Input):
+    """The find-bar input. Typing filters the label column; Tab cycles matches.
+
+    Enter accepts (keeps the cursor on the current match), Escape cancels (puts
+    it back). Typing is handled by the app via Input.Changed.
+    """
+
+    def on_key(self, event) -> None:
+        app = self.app
+        key = event.key
+        if key == "enter":
+            event.stop()
+            app.find_accept()
+        elif key == "escape":
+            event.stop()
+            app.find_cancel()
+        elif key == "tab":
+            event.stop()
+            event.prevent_default()
+            app.find_next(1)
+        elif key == "shift+tab":
+            event.stop()
+            event.prevent_default()
+            app.find_next(-1)
+
+
 class CommandInput(Input):
     """The command-bar input. Drives the autocomplete menu above it.
 
@@ -158,6 +184,10 @@ class GridView(VerticalScroll):
         self.cells: dict[tuple[int, int], Cell] = {}
         self.cursor: tuple[int, int] = (0, 0)
         self.editing = False
+        self.find_mode = False
+        self.matches: list[int] = []
+        self.match_pos = 0
+        self._find_origin = (0, 0)
 
     @property
     def grid(self):
@@ -329,6 +359,56 @@ class GridView(VerticalScroll):
         self.focus()
         self.app.set_status("Cleared (undo with /undo)")
 
+    # --- find ----------------------------------------------------------
+    def start_find(self) -> None:
+        self.find_mode = True
+        self._find_origin = self.cursor
+        self.matches = []
+        self.match_pos = 0
+
+    def update_find(self, query: str) -> None:
+        for cell in self.cells.values():
+            cell.remove_class("match")
+        q = query.strip().lower()
+        self.matches = []
+        if q:
+            for vr, ri in enumerate(self.vrows):
+                if q in self.grid.rows[ri].cells[0].lower():
+                    self.matches.append(vr)
+        for vr in self.matches:
+            label = self.cells.get((vr, 0))
+            if label is not None:
+                label.add_class("match")
+        if self.matches:
+            self.match_pos = 0
+            self._goto_match()
+
+    def _goto_match(self) -> None:
+        nav = self._nav_cols()
+        if not nav or not self.matches:
+            return
+        vr = self.matches[self.match_pos]
+        self._select(self.cursor, False)
+        self.cursor = (vr, nav[0])
+        self._select(self.cursor, True)
+
+    def find_next(self, delta: int) -> None:
+        if not self.matches:
+            return
+        self.match_pos = (self.match_pos + delta) % len(self.matches)
+        self._goto_match()
+
+    def clear_find(self, restore: bool) -> None:
+        for cell in self.cells.values():
+            cell.remove_class("match")
+        self.find_mode = False
+        if restore and 0 <= self._find_origin[0] < len(self.vrows):
+            self._select(self.cursor, False)
+            self.cursor = self._find_origin
+            self._select(self.cursor, True)
+        self.matches = []
+        self.match_pos = 0
+
     # --- keys ----------------------------------------------------------
     def on_key(self, event) -> None:
         if self.editing:
@@ -340,9 +420,12 @@ class GridView(VerticalScroll):
         elif key in ("enter", "ctrl+c"):
             event.stop()
             self.copy()
-        elif key == "f":
+        elif key == "e":
             event.stop()
             self.edit()
+        elif key == "f":
+            event.stop()
+            self.app.open_find()
         elif key in ("delete", "backspace"):
             event.stop()
             self.clear()

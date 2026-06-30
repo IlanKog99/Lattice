@@ -78,6 +78,15 @@ GridView {
     text-style: bold;
 }
 
+/* find matches — a cool teal, distinct from the ember cursor */
+.cell.match {
+    background: #2a7d8c;
+}
+.cell.match .celltext {
+    color: #06121a;
+    text-style: bold;
+}
+
 /* in-cell editor */
 .celledit {
     height: 1;
@@ -98,6 +107,31 @@ GridView {
     background: #11161f;
     color: #aeb8c4;
     border-top: solid #1a212e;
+}
+
+/* ---- find bar ---- */
+#findbar {
+    height: 2;
+    dock: bottom;
+    layout: horizontal;
+    background: #11161f;
+    border-top: heavy #2a7d8c;
+    padding: 0 2;
+    display: none;
+}
+#findprompt {
+    width: 7;
+    height: 1;
+    color: #2a7d8c;
+    text-style: bold;
+}
+#findinput {
+    width: 1fr;
+    height: 1;
+    border: none;
+    padding: 0;
+    background: #11161f;
+    color: #ffffff;
 }
 
 /* ---- command bar + autocomplete menu ---- */
