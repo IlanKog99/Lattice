@@ -1,0 +1,166 @@
+/* Lattice theme — "ember on ink".
+   Deep blue-black surface, soft off-white text, one committed warm accent
+   (#ff6a3d) carrying the labels and the cursor. A single green pulse confirms
+   a copy. No second accent, no gradients — restraint, then one hot point. */
+
+Screen {
+    background: #0a0d13;
+    color: #c4ccd6;
+    layout: vertical;
+}
+
+/* ---- top bar ---- */
+#topbar {
+    height: 3;
+    padding: 0 3;
+    background: #0a0d13;
+    border-bottom: heavy #1a212e;
+    content-align: left middle;
+    color: #ff6a3d;
+}
+
+/* ---- grid ---- */
+GridView {
+    height: 1fr;
+    padding: 1 3;
+    background: #0a0d13;
+    scrollbar-background: #0a0d13;
+    scrollbar-color: #2a3343;
+    scrollbar-size-vertical: 1;
+}
+
+.gridrow {
+    height: 1;
+    width: auto;
+}
+.gridrow.header {
+    height: 1;
+    margin-bottom: 1;
+}
+
+.cell {
+    height: 1;
+    padding: 0 1;
+    overflow: hidden;
+}
+.celltext {
+    width: auto;
+    color: #c4ccd6;
+}
+
+/* header labels */
+.hcell .celltext {
+    color: #8b97a8;
+    text-style: bold;
+}
+
+/* the left identifier column */
+.cell.label .celltext {
+    color: #ff6a3d;
+    text-style: bold;
+}
+
+/* cursor */
+.cell.sel {
+    background: #ff6a3d;
+}
+.cell.sel .celltext {
+    color: #0a0d13;
+    text-style: bold;
+}
+
+/* copy confirmation pulse */
+.cell.copied {
+    background: #3fb950;
+}
+.cell.copied .celltext {
+    color: #0a0d13;
+    text-style: bold;
+}
+
+/* in-cell editor */
+.celledit {
+    height: 1;
+    width: 100%;
+    border: none;
+    padding: 0;
+    background: #1b2433;
+    color: #ffffff;
+}
+
+/* ---- status line ---- */
+#status {
+    height: 1;
+    dock: bottom;
+    padding: 0 3;
+    background: #11161f;
+    color: #6b7787;
+    border-top: solid #1a212e;
+}
+
+/* ---- command bar ---- */
+#cmdbar {
+    height: 3;
+    dock: bottom;
+    layout: horizontal;
+    background: #11161f;
+    border-top: heavy #ff6a3d;
+    padding: 0 2;
+    display: none;
+}
+#cmdprompt {
+    width: 2;
+    height: 1;
+    margin-top: 1;
+    color: #ff6a3d;
+    text-style: bold;
+}
+#cmdinput {
+    width: 1fr;
+    height: 1;
+    margin-top: 1;
+    border: none;
+    padding: 0;
+    background: #11161f;
+    color: #ffffff;
+}
+
+/* ---- modals ---- */
+StepModal {
+    align: center middle;
+    background: #0a0d13 60%;
+}
+.modal {
+    width: 64;
+    height: auto;
+    max-height: 80%;
+    padding: 1 2;
+    background: #11161f;
+    border: heavy #ff6a3d;
+}
+.modal-title {
+    color: #ff6a3d;
+    text-style: bold;
+    margin-bottom: 1;
+}
+.prompt {
+    color: #c4ccd6;
+    margin-bottom: 1;
+}
+.modal OptionList {
+    background: #11161f;
+    border: none;
+    height: auto;
+    max-height: 14;
+    padding: 0;
+}
+.modal OptionList > .option-list--option-highlighted {
+    background: #ff6a3d;
+    color: #0a0d13;
+    text-style: bold;
+}
+.modalinput {
+    border: tall #2a3343;
+    background: #0a0d13;
+    color: #ffffff;
+}

@@ -1,0 +1,19 @@
+# The data store — never commit it. It holds everything, encoded.
+grid.dat
+grid.tmp
+*.dat
+*.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

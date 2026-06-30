@@ -1,0 +1,3 @@
+# Lattice runtime dependencies
+textual>=0.80,<9
+pyperclip>=1.8
