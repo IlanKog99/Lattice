@@ -4,13 +4,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from rich.text import Text
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal
-from textual.widgets import Static
+from textual.containers import Horizontal, Vertical
+from textual.widgets import OptionList, Static
+from textual.widgets.option_list import Option
 
 from . import APP_NAME, __version__, store
 from .screens import AddScreen, MassScreen, RemoveScreen
-from .widgets import BoxInput, GridView
+from .widgets import CommandInput, GridView
 
 HINTS = (
     "↑↓←→ / wasd  move   ·   enter  copy   ·   f  edit   ·   "
@@ -25,6 +27,17 @@ _COMMANDS = {
     "remove": RemoveScreen,
     "mass": MassScreen,
 }
+
+# Everything the autocomplete menu can offer: (name, description).
+COMMAND_INFO = [
+    ("add", "Add a row or column"),
+    ("remove", "Hide a row or column"),
+    ("mass", "Update many cells in order"),
+    ("visible", "Reveal values (e.g. /visible 5)"),
+    ("hide", "Mask values now"),
+    ("quit", "Exit Lattice"),
+]
+_KNOWN = {name for name, _ in COMMAND_INFO} | {"exit", "q"}
 
 
 class LatticeApp(App):
@@ -51,9 +64,11 @@ class LatticeApp(App):
         )
         yield GridView(id="grid")
         yield Static(HINTS, id="status")
-        with Horizontal(id="cmdbar"):
-            yield Static("›", id="cmdprompt")
-            yield BoxInput("", self.run_command, self.close_command, id="cmdinput")
+        with Vertical(id="cmdbar"):
+            yield OptionList(id="cmdmenu")
+            with Horizontal(id="cmdrow"):
+                yield Static("›", id="cmdprompt")
+                yield CommandInput(id="cmdinput")
 
     def on_mount(self) -> None:
         if not self.grid.columns:
@@ -78,18 +93,79 @@ class LatticeApp(App):
         if message:
             self.set_timer(2.6, lambda: bar.update(HINTS))
 
-    # --- command bar ---------------------------------------------------
+    # --- command bar + autocomplete menu -------------------------------
     def open_command(self) -> None:
         self.query_one("#cmdbar").display = True
-        field = self.query_one("#cmdinput", BoxInput)
+        field = self.query_one("#cmdinput", CommandInput)
         field.value = "/"
-        field.cursor_position = len(field.value)
+        field.cursor_position = 1
+        self._filter_menu("/")
         field.focus()
 
     def close_command(self) -> None:
         self.query_one("#cmdbar").display = False
-        self.query_one("#cmdinput", BoxInput).value = ""
+        self.query_one("#cmdinput", CommandInput).value = ""
         self.grid_view.focus()
+
+    def _menu(self) -> OptionList:
+        return self.query_one("#cmdmenu", OptionList)
+
+    def _filter_menu(self, value: str) -> None:
+        tokens = value.lstrip("/").split()
+        prefix = tokens[0].lower() if tokens else ""
+        menu = self._menu()
+        menu.clear_options()
+        matches = [(n, d) for n, d in COMMAND_INFO if n.startswith(prefix)]
+        for name, desc in matches:
+            menu.add_option(
+                Option(Text.from_markup(f"[b]/{name}[/b]  [dim]{desc}[/dim]"), id=name)
+            )
+        menu.display = bool(matches)
+        if matches:
+            menu.highlighted = 0
+
+    def _highlighted_command(self) -> str | None:
+        menu = self._menu()
+        if not menu.option_count or menu.highlighted is None:
+            return None
+        return menu.get_option_at_index(menu.highlighted).id
+
+    def command_move(self, delta: int) -> None:
+        menu = self._menu()
+        if not menu.option_count:
+            return
+        if delta > 0:
+            menu.action_cursor_down()
+        else:
+            menu.action_cursor_up()
+
+    def command_complete(self) -> None:
+        name = self._highlighted_command()
+        if not name:
+            return
+        field = self.query_one("#cmdinput", CommandInput)
+        field.value = f"/{name} "
+        field.cursor_position = len(field.value)
+        self._filter_menu(field.value)
+
+    def command_submit(self) -> None:
+        value = self.query_one("#cmdinput", CommandInput).value
+        tokens = value.lstrip("/").split()
+        typed = tokens[0].lower() if tokens else ""
+        if typed in _KNOWN:
+            self.run_command(value)
+        else:
+            name = self._highlighted_command()
+            self.run_command(f"/{name}" if name else value)
+
+    def on_input_changed(self, event) -> None:
+        if event.input.id == "cmdinput":
+            self._filter_menu(event.value)
+
+    def on_option_list_option_selected(self, event) -> None:
+        # A click on a menu entry runs that command.
+        if event.option_list.id == "cmdmenu":
+            self.run_command(f"/{event.option.id}")
 
     def run_command(self, raw: str) -> None:
         self.close_command()

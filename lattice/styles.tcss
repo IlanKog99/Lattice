@@ -54,9 +54,9 @@ GridView {
     text-style: bold;
 }
 
-/* the left identifier column */
+/* the left identifier column — styled like the column headers */
 .cell.label .celltext {
-    color: #ff6a3d;
+    color: #8b97a8;
     text-style: bold;
 }
 
@@ -98,27 +98,47 @@ GridView {
     border-top: solid #1a212e;
 }
 
-/* ---- command bar ---- */
+/* ---- command bar + autocomplete menu ---- */
 #cmdbar {
-    height: 3;
+    height: auto;
+    max-height: 12;
     dock: bottom;
-    layout: horizontal;
+    layout: vertical;
     background: #11161f;
     border-top: heavy #ff6a3d;
     padding: 0 2;
     display: none;
 }
+#cmdmenu {
+    height: auto;
+    max-height: 7;
+    margin: 1 0 0 0;
+    padding: 0;
+    border: none;
+    background: #11161f;
+    color: #c4ccd6;
+    scrollbar-size-vertical: 1;
+}
+#cmdmenu > .option-list--option-highlighted,
+#cmdmenu:focus > .option-list--option-highlighted {
+    background: #1b2433;
+    color: #ffffff;
+    text-style: bold;
+}
+#cmdrow {
+    height: 1;
+    layout: horizontal;
+    margin-bottom: 1;
+}
 #cmdprompt {
     width: 2;
     height: 1;
-    margin-top: 1;
     color: #ff6a3d;
     text-style: bold;
 }
 #cmdinput {
     width: 1fr;
     height: 1;
-    margin-top: 1;
     border: none;
     padding: 0;
     background: #11161f;

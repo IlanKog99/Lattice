@@ -51,6 +51,34 @@ class BoxInput(Input):
             self._on_cancel()
 
 
+class CommandInput(Input):
+    """The command-bar input. Drives the autocomplete menu above it.
+
+    Up/Down move the menu highlight, Tab completes to it, Enter runs, Escape
+    closes. The menu itself is filtered by the app as the value changes.
+    """
+
+    def on_key(self, event) -> None:
+        app = self.app
+        key = event.key
+        if key == "enter":
+            event.stop()
+            app.command_submit()
+        elif key == "escape":
+            event.stop()
+            app.close_command()
+        elif key == "down":
+            event.stop()
+            app.command_move(1)
+        elif key == "up":
+            event.stop()
+            app.command_move(-1)
+        elif key == "tab":
+            event.stop()
+            event.prevent_default()
+            app.command_complete()
+
+
 class Cell(Container):
     """A single grid cell. Shows a value; can flip into an inline editor."""
 

@@ -41,6 +41,11 @@ happens. There is no separate "save" step.
 
 ### Commands (type after `/`)
 
+Pressing `/` opens a command bar with an **autocomplete menu** above it, listing
+every command. Keep typing to filter it; `↑`/`↓` move the highlight, `Tab`
+completes to the highlighted command, `Enter` runs it, `Esc` closes. You can
+also click an entry.
+
 | Command | What it does |
 |---------|--------------|
 | `/add` | Add a new row or column. Asks for a name, then walks you through each field. |
