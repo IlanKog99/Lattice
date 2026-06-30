@@ -55,7 +55,12 @@ row's `cells` list is kept exactly as wide as `columns` by `Grid.normalise()`.
 - `Screen` already defines `name` and `title`; don't shadow them on modal
   subclasses (use `entry_name`, `title_text`, etc.).
 - New slash commands: add an entry to `_COMMANDS` in `app.py` and a
-  `StepModal` subclass in `screens.py`.
+  `StepModal` subclass in `screens.py`. Commands that aren't modals (e.g.
+  `/visible`, `/hide`) are handled inline in `LatticeApp.run_command`.
+- Value cells are **masked by default**. `app.revealed` plus a single timer
+  drive a global reveal (`/visible [minutes]`, default 1); `Cell.show()` mirrors
+  that state. Labels are never masked. Copy and edit always use the real value,
+  so revealing is never required to copy.
 
 ## Testing
 

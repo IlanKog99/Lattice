@@ -54,10 +54,14 @@ class BoxInput(Input):
 class Cell(Container):
     """A single grid cell. Shows a value; can flip into an inline editor."""
 
+    MASK = "••••••"
+
     def __init__(self, value: str, vrow: int, vcol: int, *, is_label: bool) -> None:
         classes = "cell label" if is_label else "cell"
         super().__init__(classes=classes)
         self._value = value
+        self._is_label = is_label
+        self._revealed = False
         self.vrow = vrow
         self.vcol = vcol
 
@@ -65,11 +69,24 @@ class Cell(Container):
         yield Static(self._display(), classes="celltext")
 
     def _display(self) -> str:
-        return self._value if self._value else " "
+        # Labels are row identifiers, not secret, so they always show. Value
+        # cells stay masked until the user reveals them with /visible.
+        if not self._value:
+            return " "
+        if self._is_label or self._revealed:
+            return self._value
+        return self.MASK
 
     @property
     def value(self) -> str:
         return self._value
+
+    def show(self, revealed: bool) -> None:
+        self._revealed = revealed
+        try:
+            self.query_one(".celltext", Static).update(self._display())
+        except Exception:  # noqa: BLE001 - inner Static not composed yet
+            pass
 
     def set_value(self, value: str) -> None:
         self._value = value
@@ -157,6 +174,10 @@ class GridView(VerticalScroll):
             rows.append(Horizontal(*line, classes="gridrow"))
 
         self.mount(*rows)
+        # Cells compose their inner Static on the next refresh; sync reveal
+        # state after that so a rebuild while revealed keeps values shown.
+        if getattr(self.app, "revealed", False):
+            self.call_after_refresh(self.apply_reveal)
 
         nav = self._nav_cols()
         if self.vrows and nav:
@@ -164,6 +185,12 @@ class GridView(VerticalScroll):
             c = min(max(self.cursor[1], nav[0]), nav[-1])
             self.cursor = (r, c)
             self._select(self.cursor, True)
+
+    def apply_reveal(self) -> None:
+        """Sync every cell's masked/revealed display with the app state."""
+        revealed = getattr(self.app, "revealed", False)
+        for cell in self.cells.values():
+            cell.show(revealed)
 
     # --- selection -----------------------------------------------------
     def _nav_cols(self) -> list[int]:

@@ -16,8 +16,13 @@ glance. Don't rely on it to protect anything that truly matters.
   ...
 ```
 
-The left column is the **label** column. Every other column holds a free-form
-value. The highlighted cell is the cursor.
+The left column is the **label** column (a row name, like the headers — it is
+never selectable and always shown). Every other column holds a free-form value.
+The highlighted cell is the cursor.
+
+**Values are masked (`••••••`) by default** and only shown on demand with
+`/visible` (see below). Copying still works while masked — you never have to
+reveal a value to copy it.
 
 ---
 
@@ -41,6 +46,9 @@ happens. There is no separate "save" step.
 | `/add` | Add a new row or column. Asks for a name, then walks you through each field. |
 | `/remove` | Hide a row or column. Nothing is deleted — it is only removed from view, so it can come back later. |
 | `/mass` | Update many cells of one row or column in order. Type each new value and press `Enter`; an **empty line finishes** and saves. |
+| `/visible` | Reveal all values for **1 minute**, then they re-mask automatically. |
+| `/visible N` | Reveal for `N` minutes instead (e.g. `/visible 5`). |
+| `/hide` | Re-mask values immediately, before the timer runs out. |
 
 ---
 

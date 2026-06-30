@@ -12,7 +12,13 @@ from . import APP_NAME, __version__, store
 from .screens import AddScreen, MassScreen, RemoveScreen
 from .widgets import BoxInput, GridView
 
-HINTS = "↑↓←→ / wasd  move   ·   enter  copy   ·   f  edit   ·   /  command   ·   q  quit"
+HINTS = (
+    "↑↓←→ / wasd  move   ·   enter  copy   ·   f  edit   ·   "
+    "/visible  reveal   ·   /  command   ·   q  quit"
+)
+
+DEFAULT_REVEAL_MINUTES = 1
+MAX_REVEAL_MINUTES = 600
 
 _COMMANDS = {
     "add": AddScreen,
@@ -33,6 +39,8 @@ class LatticeApp(App):
     def __init__(self) -> None:
         super().__init__()
         self.grid = store.load()
+        self.revealed = False
+        self._reveal_timer = None
 
     # --- layout --------------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -85,17 +93,55 @@ class LatticeApp(App):
 
     def run_command(self, raw: str) -> None:
         self.close_command()
-        name = raw.strip().lstrip("/").strip().lower()
-        if not name:
+        parts = raw.strip().lstrip("/").split()
+        if not parts:
             return
+        name, args = parts[0].lower(), parts[1:]
         if name in ("q", "quit", "exit"):
             self.exit()
+            return
+        if name == "visible":
+            self._cmd_visible(args)
+            return
+        if name == "hide":
+            self.hide_values()
             return
         screen = _COMMANDS.get(name)
         if screen is None:
             self.set_status(f"Unknown command: /{name}")
             return
         self.push_screen(screen(), self.refresh_grid)
+
+    # --- value visibility ----------------------------------------------
+    def _cmd_visible(self, args: list[str]) -> None:
+        minutes: float = DEFAULT_REVEAL_MINUTES
+        if args:
+            try:
+                minutes = float(args[0])
+            except ValueError:
+                self.set_status("Usage: /visible [minutes]")
+                return
+            if minutes <= 0 or minutes > MAX_REVEAL_MINUTES:
+                self.set_status(f"Minutes must be between 0 and {MAX_REVEAL_MINUTES}")
+                return
+        self.reveal_for(minutes)
+
+    def reveal_for(self, minutes: float) -> None:
+        self.revealed = True
+        self.grid_view.apply_reveal()
+        if self._reveal_timer is not None:
+            self._reveal_timer.stop()
+        self._reveal_timer = self.set_timer(minutes * 60, self.hide_values)
+        shown = f"{minutes:g}"
+        self.set_status(f"Values visible for {shown} min — /hide to mask now")
+
+    def hide_values(self) -> None:
+        self.revealed = False
+        if self._reveal_timer is not None:
+            self._reveal_timer.stop()
+            self._reveal_timer = None
+        self.grid_view.apply_reveal()
+        self.set_status("Values hidden")
 
 
 def main() -> None:
