@@ -107,11 +107,6 @@ Requires **Python 3.10+** on Windows.
 
    or double-click **`Lattice.pyw`**.
 
-> **Why does double-clicking open a new terminal window?**
-> Lattice draws in a terminal. A `.pyw` runs without a console, so the launcher
-> opens a fresh terminal window for you and runs there. If you start it from an
-> existing terminal, it runs right in place.
-
 ---
 
 ## Create a Windows Start Menu shortcut
