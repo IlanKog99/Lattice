@@ -109,40 +109,6 @@ Requires **Python 3.10+** on Windows.
 
 ---
 
-## Create a Windows Start Menu shortcut
-
-You can launch Lattice from the Start Menu like any installed app.
-
-### The easy way (script)
-
-From a PowerShell prompt in the project folder:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\make_shortcut.ps1
-```
-
-This creates **`Lattice.lnk`** in your Start Menu
-(`%AppData%\Microsoft\Windows\Start Menu\Programs`). Press the Windows key and
-type "Lattice" to find it.
-
-### The manual way
-
-1. Press `Win+R`, type `shell:programs`, press Enter. The Start Menu *Programs*
-   folder opens.
-2. Right-click → **New → Shortcut**.
-3. For the location, enter (adjust the path to your machine):
-
-   ```
-   "C:\Program Files\PyManager\pythonw.exe" "C:\Users\<you>\Documents\Lattice\Lattice.pyw"
-   ```
-
-   Use the path to *your* `pythonw.exe` — find it with `(Get-Command pythonw).Source`.
-4. Name it **Lattice** and click Finish.
-5. (Optional) Right-click the new shortcut → **Properties** → set **Start in**
-   to the `Lattice` folder.
-
----
-
 ## Project layout
 
 ```
