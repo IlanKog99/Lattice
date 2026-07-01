@@ -41,7 +41,7 @@ Do not add unlock prompts, key derivation, or claims of real security.
 | `Lattice.pyw` | Double-click launcher. Re-spawns into a real terminal because a TUI can't draw under windowless `pythonw`. |
 | `lattice/app.py` | `LatticeApp`: top bar, grid, command bar, status line, command dispatch, `persist()`. |
 | `lattice/widgets.py` | `GridView` (navigation, copy, in-place edit via `e`, find mode via `f`), `Cell`, `BoxInput`, `CommandInput`, `FindInput`. Find matches the label column and highlights matches with the `match` class (teal), separate from the `sel` cursor (ember). |
-| `lattice/screens.py` | `StepModal` base plus `AddScreen`, `RemoveScreen`, `MassScreen` — small step machines for the slash commands. |
+| `lattice/screens.py` | `StepModal` base (choice/text steps, key legend, `b`-to-go-back via a history stack) plus `AddScreen`, `RemoveScreen`, `MassScreen`. `ConfirmScreen` is a separate yes/no popup pushed on top for `/remove` (dismisses with `"yes"`/`"no"`/`"back"`/`"cancel"`). |
 | `lattice/models.py` | `Grid` / `Column` / `Row` dataclasses, visibility views, and mutations. |
 | `lattice/store.py` | `load()` and atomic `save()` through the codec. `DATA_FILE` lives in the project root. |
 | `lattice/codec.py` | `pack()` / `unpack()`: utf-8 → zlib → rolling XOR → base85. The reversible mangling. Changing `_MASK` or `_TAG` invalidates existing stores. |

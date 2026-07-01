@@ -47,6 +47,12 @@ The label column (left) is never selectable. Every edit, clear, add, hide, or
 mass update is **saved automatically** the moment it happens — there is no
 separate "save" step. Changed something by mistake? Run `/undo`.
 
+Every popup shows its keys along the bottom. On selection screens: arrow keys or
+`W`/`S` move, `Enter` selects, `B` goes back a step, `Esc` cancels. On the
+confirm popup: arrows or `A`/`D` switch buttons, `Enter` chooses, `B` returns to
+the list, `Esc` cancels. (While typing a value, letters go into the field, so
+back out of those with `Esc`.)
+
 ### Find mode (`F`)
 
 Press `F` and start typing — Lattice matches your text against the **label
@@ -67,7 +73,7 @@ also click an entry.
 | Command | What it does |
 |---------|--------------|
 | `/add` | Add a new row or column. Asks for a name, then walks you through each field. |
-| `/remove` | Hide a row or column (asks **Yes / No** first). Nothing is deleted — it is only removed from view, so it can come back later via `/undo`. |
+| `/remove` | Hide a row or column. After you choose, a small **Yes / No** popup opens on top to confirm. Nothing is deleted — it is only removed from view, so it can come back later via `/undo`. |
 | `/mass` | Update many cells of one row or column in order. Type each new value and press `Enter`; an **empty line finishes** and saves. |
 | `/undo` | Undo the last change (edit, clear, add, hide, or mass update). Can be repeated to step further back. |
 | `/visible` | Reveal **all** values for **1 minute**, then they re-mask automatically. (To peek a single cell instead, hold `V`.) |
