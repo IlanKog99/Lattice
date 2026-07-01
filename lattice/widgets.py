@@ -110,11 +110,18 @@ class Cell(Container):
 
     MASK = "••••••"
 
-    def __init__(self, value: str, vrow: int, vcol: int, *, is_label: bool) -> None:
-        classes = "cell label" if is_label else "cell"
+    def __init__(
+        self, value: str, vrow: int, vcol: int, *, is_label: bool = False, header: bool = False
+    ) -> None:
+        classes = "cell"
+        if is_label:
+            classes += " label"   # row-header column: colour + a divider border
+        if header:
+            classes += " hcell"   # top header row
         super().__init__(classes=classes)
         self._value = value
         self._is_label = is_label
+        self._header = header
         self._revealed = False
         self.vrow = vrow
         self.vcol = vcol
@@ -123,11 +130,11 @@ class Cell(Container):
         yield Static(self._display(), classes="celltext")
 
     def _display(self) -> str:
-        # Labels are row identifiers, not secret, so they always show. Value
-        # cells stay masked until the user reveals them with /visible.
+        # Labels and headers are identifiers, not secret, so they always show.
+        # Value cells stay masked until revealed with /visible.
         if not self._value:
             return " "
-        if self._is_label or self._revealed:
+        if self._is_label or self._header or self._revealed:
             return self._value
         return self.MASK
 
@@ -195,6 +202,9 @@ class GridView(VerticalScroll):
         self.grab_ri = 0
         self.grab_ci = 0
         self._move_original = None
+        self.header_cells: dict[int, Cell] = {}
+        self.rename_mode = False
+        self.rename_cur = ("h", 0)
 
     @property
     def grid(self):
@@ -226,15 +236,13 @@ class GridView(VerticalScroll):
 
         rows: list[Horizontal] = []
 
+        self.header_cells: dict[int, Cell] = {}
         header_cells = []
-        for w, ci in zip(widths, self.vcols):
-            classes = "cell hcell label" if ci == 0 else "cell hcell"
-            box = Container(
-                Static(self.grid.columns[ci].name or " ", classes="celltext"),
-                classes=classes,
-            )
-            box.styles.width = w
-            header_cells.append(box)
+        for vc, (w, ci) in enumerate(zip(widths, self.vcols)):
+            cell = Cell(self.grid.columns[ci].name, -1, vc, is_label=(ci == 0), header=True)
+            cell.styles.width = w
+            self.header_cells[vc] = cell
+            header_cells.append(cell)
         rows.append(Horizontal(*header_cells, classes="gridrow header"))
 
         for vr, ri in enumerate(self.vrows):
@@ -255,7 +263,9 @@ class GridView(VerticalScroll):
             self.call_after_refresh(self.apply_reveal)
 
         nav = self._nav_cols()
-        if self.vrows and nav:
+        if self.rename_mode:
+            self._rename_select(self.rename_cur, True)
+        elif self.vrows and nav:
             r = min(self.cursor[0], len(self.vrows) - 1)
             c = min(max(self.cursor[1], nav[0]), nav[-1])
             self.cursor = (r, c)
@@ -457,6 +467,86 @@ class GridView(VerticalScroll):
         self.focus()
         self.app.set_status("New order saved" if apply else "Move cancelled")
 
+    # --- rename mode (edit row/column headers) -------------------------
+    def enter_rename(self) -> None:
+        self.rename_mode = True
+        self.add_class("renamemode")
+        self._select(self.cursor, False)  # drop the normal cursor band
+        self.rename_cur = ("h", 0)
+        self._rename_select(self.rename_cur, True)
+        self.focus()
+        self.app.set_status("Rename: navigate headers · r edit · enter save · esc exit")
+
+    def _rename_cell(self, target) -> "Cell | None":
+        kind, idx = target
+        if kind == "h":
+            return self.header_cells.get(idx)
+        return self.cells.get((idx, 0))
+
+    def _rename_select(self, target, on: bool) -> None:
+        cell = self._rename_cell(target)
+        if cell is not None:
+            cell.select(on)
+            if on:
+                self.call_after_refresh(self.scroll_to_widget, cell)
+
+    def _rename_move(self, dr: int, dc: int) -> None:
+        kind, idx = self.rename_cur
+        new = None
+        if kind == "h":
+            if dc < 0 and idx > 0:
+                new = ("h", idx - 1)
+            elif dc > 0 and idx < len(self.vcols) - 1:
+                new = ("h", idx + 1)
+            elif dr > 0 and idx == 0 and self.vrows:
+                new = ("r", 0)
+        else:  # "r" — a row label in the left column
+            if dr < 0:
+                new = ("h", 0) if idx == 0 else ("r", idx - 1)
+            elif dr > 0 and idx < len(self.vrows) - 1:
+                new = ("r", idx + 1)
+        if new is not None and new != self.rename_cur:
+            self._rename_select(self.rename_cur, False)
+            self.rename_cur = new
+            self._rename_select(new, True)
+
+    def rename_edit(self) -> None:
+        if self.editing:
+            return
+        cell = self._rename_cell(self.rename_cur)
+        if cell is None:
+            return
+        self.editing = True
+        kind, idx = self.rename_cur
+
+        def submit(value: str) -> None:
+            self.app.push_undo()
+            if kind == "h":
+                self.grid.columns[self.vcols[idx]].name = value
+            else:
+                self.grid.rows[self.vrows[idx]].cells[0] = value
+            self.app.persist()
+            self.editing = False
+            self.rebuild()
+            self.focus()
+            self.app.set_status("Renamed")
+
+        def cancel() -> None:
+            cell.end_edit()
+            self.editing = False
+            self.focus()
+            self.app.set_status("Rename cancelled")
+
+        cell.begin_edit(submit, cancel)
+
+    def exit_rename(self) -> None:
+        self._rename_select(self.rename_cur, False)
+        self.rename_mode = False
+        self.remove_class("renamemode")
+        self.rebuild()
+        self.focus()
+        self.app.set_status(None)
+
     # --- peek (hold v to reveal the current cell) ----------------------
     PEEK_HOLD = 0.7  # re-mask this long after the last v (i.e. after release)
 
@@ -569,8 +659,23 @@ class GridView(VerticalScroll):
             event.stop()
             self.app.move_request_cancel()
 
+    def _on_rename_key(self, event) -> None:
+        key = event.key
+        if key in _MOVES:
+            event.stop()
+            self._rename_move(*_MOVES[key])
+        elif key in ("r", "enter"):
+            event.stop()
+            self.rename_edit()
+        elif key == "escape":
+            event.stop()
+            self.exit_rename()
+
     def on_key(self, event) -> None:
         if self.editing:
+            return
+        if self.rename_mode:
+            self._on_rename_key(event)
             return
         if self.move_mode:
             self._on_move_key(event)

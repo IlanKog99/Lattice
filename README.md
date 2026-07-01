@@ -45,8 +45,9 @@ reveal a value to copy it.
 | `Q` | Quit |
 
 The label column (left) is never selectable. Every edit, clear, add, hide, or
-mass update is **saved automatically** the moment it happens — there is no
-separate "save" step. Changed something by mistake? Run `/undo`.
+mass update is **saved automatically** the moment it happens — a small spinner
+and "saving" flash next to the app name each time — there is no separate "save"
+step. Changed something by mistake? Run `/undo`.
 
 Every popup shows its keys along the bottom. On selection screens: arrow keys or
 `W`/`S` move, `Enter` selects, `B` goes back a step, `Esc` cancels. On the
@@ -77,6 +78,14 @@ Example: typing `ha` lands you on the `IL-HA` row.
    puts everything back the way it was. A saved reorder can be reverted with
    `/undo`.
 
+### Rename mode (`/rename`)
+
+`/rename` moves the cursor onto the **headers** only — the column headers along
+the top and the row labels down the left. Use the arrow keys or `W`/`A`/`S`/`D`
+to move among them. Press **R** to edit the selected header (type the new text,
+`Enter` saves, `Esc` cancels the edit). `Esc` while just navigating leaves
+rename mode. No confirmation — renames save immediately (and are undoable).
+
 ### Commands (type after `/`)
 
 Pressing `/` opens a command bar with an **autocomplete menu** above it, listing
@@ -90,6 +99,7 @@ also click an entry.
 | `/remove` | Hide a row or column. After you choose, a small **Yes / No** popup opens on top to confirm. Nothing is deleted — it is only removed from view, so it can come back later via `/undo`. |
 | `/mass` | Update many cells of one row or column in order. Type each new value and press `Enter`; an **empty line finishes** and saves. |
 | `/move` | Reorder rows and columns (see **Move mode** below). |
+| `/rename` | Rename a row or column header (see **Rename mode** below). |
 | `/undo` | Undo the last change (edit, clear, add, hide, or mass update). Can be repeated to step further back. |
 | `/visible` | Reveal **all** values for **1 minute**, then they re-mask automatically. (To peek a single cell instead, hold `V`.) |
 | `/visible N` | Reveal for `N` minutes instead (e.g. `/visible 5`). |

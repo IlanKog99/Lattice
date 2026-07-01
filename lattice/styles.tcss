@@ -15,8 +15,20 @@ Screen {
     padding: 0 3;
     background: #0a0d13;
     border-bottom: heavy #1a212e;
-    content-align: left middle;
+    layout: horizontal;
+}
+#appname {
+    width: auto;
+    height: 100%;
     color: #ff6a3d;
+    content-align: left middle;
+}
+#saving {
+    width: auto;
+    height: 100%;
+    margin-left: 2;
+    content-align: left middle;
+    display: none;
 }
 
 /* ---- grid ---- */
@@ -28,25 +40,28 @@ GridView {
     scrollbar-color: #2a3343;
     scrollbar-size-vertical: 1;
 }
-/* subtle tint while reordering, so it's clear move mode is active */
-GridView.movemode {
+/* subtle tint while reordering or renaming, so the mode is obvious */
+GridView.movemode,
+GridView.renamemode {
     background: #0d1018;
 }
 
 .gridrow {
     height: 1;
     width: auto;
+    margin-bottom: 1;          /* a little breathing room between rows */
 }
 /* faint underline separating the column headers from the data */
 .gridrow.header {
     height: 2;
-    margin-bottom: 0;
+    margin-bottom: 1;
     border-bottom: solid #1b2230;
 }
 
 .cell {
     height: 1;
     padding: 0 1;
+    margin-right: 2;           /* a little breathing room between columns */
     overflow: hidden;
 }
 .celltext {

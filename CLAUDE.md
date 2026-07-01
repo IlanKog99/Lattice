@@ -64,6 +64,12 @@ row's `cells` list is kept exactly as wide as `columns` by `Grid.normalise()`.
   reorders live as the user grabs (space) and nudges rows/columns, then either
   keeps the change (pushing the snapshot onto the undo stack) or restores the
   snapshot on cancel. Both exits confirm via `ConfirmScreen`.
+- Rename mode (`/rename`) also lives in `GridView`: the cursor is constrained to
+  the header cells (top row + label column) and `r` edits the selected header in
+  place. Header cells are `Cell` widgets too (`header=True`, never masked);
+  `is_label` is kept separate so only column 0 draws the divider border.
+- `LatticeApp.persist()` also flashes the top-bar `#saving` indicator (a spinner
+  interval plus a lingering hide timer).
 - Value cells are **masked by default**. `app.revealed` plus a single timer
   drive a global reveal (`/visible [minutes]`, default 1); `Cell.show()` mirrors
   that state. Labels are never masked. Copy and edit always use the real value,

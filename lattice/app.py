@@ -43,6 +43,16 @@ MOVE_HINTS = "   ".join(
     ]
 )
 
+RENAME_HINTS = "   ".join(
+    [
+        "[#ff6a3d b]RENAME MODE[/]",
+        _k("wasd/arrows", "headers"),
+        _k("r", "edit"),
+        _k("enter", "save"),
+        _k("esc", "exit"),
+    ]
+)
+
 DEFAULT_REVEAL_MINUTES = 1
 MAX_REVEAL_MINUTES = 600
 UNDO_DEPTH = 100
@@ -59,6 +69,7 @@ COMMAND_INFO = [
     ("remove", "Hide a row or column"),
     ("mass", "Update many cells in order"),
     ("move", "Reorder rows and columns"),
+    ("rename", "Rename a row or column header"),
     ("undo", "Undo the last change"),
     ("visible", "Reveal values (e.g. /visible 5)"),
     ("hide", "Mask values now"),
@@ -81,13 +92,19 @@ class LatticeApp(App):
         self.revealed = False
         self._reveal_timer = None
         self._undo: list = []
+        self._save_frames = "◐◓◑◒"
+        self._save_frame = 0
+        self._save_anim = None
+        self._save_hide = None
 
     # --- layout --------------------------------------------------------
     def compose(self) -> ComposeResult:
-        yield Static(
-            f"[b]{APP_NAME}[/b]\n[dim]a quiet little grid keeper[/dim]",
-            id="topbar",
-        )
+        with Horizontal(id="topbar"):
+            yield Static(
+                f"[b]{APP_NAME}[/b]\n[dim]a quiet little grid keeper[/dim]",
+                id="appname",
+            )
+            yield Static("", id="saving")
         yield GridView(id="grid")
         yield Static(HINTS, id="status")
         with Vertical(id="findbar"):
@@ -122,6 +139,37 @@ class LatticeApp(App):
     def persist(self) -> None:
         """Auto-save: called after every change that touches the store."""
         store.save(self.grid)
+        self._show_saving()
+
+    # --- auto-save indicator -------------------------------------------
+    def _show_saving(self) -> None:
+        indicator = self.query_one("#saving", Static)
+        indicator.display = True
+        if self._save_anim is None:
+            self._save_anim = self.set_interval(0.12, self._spin)
+        self._spin()
+        if self._save_hide is not None:
+            self._save_hide.stop()
+        # linger a beat after the last save so the user notices it
+        self._save_hide = self.set_timer(1.0, self._hide_saving)
+
+    def _spin(self) -> None:
+        frame = self._save_frames[self._save_frame % len(self._save_frames)]
+        self._save_frame += 1
+        try:
+            self.query_one("#saving", Static).update(f"[#3fb950]{frame}[/] [#6b7787]saving[/]")
+        except Exception:  # noqa: BLE001 - widget gone during shutdown
+            pass
+
+    def _hide_saving(self) -> None:
+        try:
+            self.query_one("#saving", Static).display = False
+        except Exception:  # noqa: BLE001
+            pass
+        if self._save_anim is not None:
+            self._save_anim.stop()
+            self._save_anim = None
+        self._save_hide = None
 
     # --- undo ----------------------------------------------------------
     def push_undo(self) -> None:
@@ -152,6 +200,13 @@ class LatticeApp(App):
             return
         gv.enter_move()
 
+    def enter_rename(self) -> None:
+        gv = self.grid_view
+        if not gv.vcols:
+            self.set_status("Nothing to rename")
+            return
+        gv.enter_rename()
+
     def move_request_apply(self) -> None:
         self.push_screen(
             ConfirmScreen("Save the new order?"),
@@ -169,7 +224,12 @@ class LatticeApp(App):
         self.grid_view.focus()
 
     def _base_hints(self) -> str:
-        return MOVE_HINTS if self.grid_view.move_mode else HINTS
+        gv = self.grid_view
+        if gv.move_mode:
+            return MOVE_HINTS
+        if gv.rename_mode:
+            return RENAME_HINTS
+        return HINTS
 
     def set_status(self, message: str | None = None) -> None:
         bar = self.query_one("#status", Static)
@@ -297,6 +357,9 @@ class LatticeApp(App):
             return
         if name == "move":
             self.enter_move()
+            return
+        if name == "rename":
+            self.enter_rename()
             return
         screen = _COMMANDS.get(name)
         if screen is None:
