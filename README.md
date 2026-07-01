@@ -21,7 +21,8 @@ never selectable and always shown). Every other column holds a free-form value.
 The highlighted cell is the cursor.
 
 The cursor's whole row is given a faint band so you can easily see which row
-(and which label) the selected cell belongs to.
+(and which label) the selected cell belongs to. Whatever value is currently on
+your clipboard is also faintly highlighted wherever it appears in the grid.
 
 **Values are masked (`••••••`) by default** and only shown on demand with
 `/visible` (see below). Copying still works while masked — you never have to

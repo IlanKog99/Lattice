@@ -205,6 +205,7 @@ class GridView(VerticalScroll):
         self.header_cells: dict[int, Cell] = {}
         self.rename_mode = False
         self.rename_cur = ("h", 0)
+        self._clip = ""
 
     @property
     def grid(self):
@@ -261,6 +262,8 @@ class GridView(VerticalScroll):
         # state after that so a rebuild while revealed keeps values shown.
         if getattr(self.app, "revealed", False):
             self.call_after_refresh(self.apply_reveal)
+        if self._clip:
+            self.mark_clipboard(self._clip)
 
         nav = self._nav_cols()
         if self.rename_mode:
@@ -276,6 +279,13 @@ class GridView(VerticalScroll):
         revealed = getattr(self.app, "revealed", False)
         for cell in self.cells.values():
             cell.show(revealed)
+
+    def mark_clipboard(self, text: str) -> None:
+        """Faintly flag cells whose value equals the current clipboard text."""
+        self._clip = text
+        match = (text or "")
+        for cell in self.cells.values():
+            cell.set_class(bool(match) and cell.value == match, "clipmatch")
 
     # --- selection -----------------------------------------------------
     def _nav_cols(self) -> list[int]:

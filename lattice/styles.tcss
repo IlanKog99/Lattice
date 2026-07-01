@@ -83,6 +83,11 @@ GridView.renamemode {
     text-style: bold;
 }
 
+/* clipboard match — very faint, just enough to notice the copied value */
+.cell.clipmatch {
+    background: #14202b;
+}
+
 /* faint band across the cursor's row (declared before .sel/.match so those
    stronger states win on the cells that carry both classes) */
 .cell.rowsel {
