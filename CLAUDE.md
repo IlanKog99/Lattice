@@ -87,3 +87,8 @@ embedding data). When testing flows with `App.run_test`, **redirect
 python -m pip install -r requirements.txt
 python -m lattice            # or double-click Lattice.pyw
 ```
+
+## Git
+
+Every update (commit) must be pushed to `master` right after — no local-only
+commits left behind.

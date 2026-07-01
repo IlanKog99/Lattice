@@ -112,7 +112,7 @@ also click an entry.
 
 Requires **Python 3.10+** on Windows.
 
-1. Open a terminal in the project folder (`PassesTUI`).
+1. Open a terminal in the project folder (`Lattice`).
 2. Install the dependencies:
 
    ```powershell
@@ -169,20 +169,20 @@ type "Lattice" to find it.
 3. For the location, enter (adjust the path to your machine):
 
    ```
-   "C:\Program Files\PyManager\pythonw.exe" "C:\Users\<you>\Documents\PassesTUI\Lattice.pyw"
+   "C:\Program Files\PyManager\pythonw.exe" "C:\Users\<you>\Documents\Lattice\Lattice.pyw"
    ```
 
    Use the path to *your* `pythonw.exe` — find it with `(Get-Command pythonw).Source`.
 4. Name it **Lattice** and click Finish.
 5. (Optional) Right-click the new shortcut → **Properties** → set **Start in**
-   to the `PassesTUI` folder.
+   to the `Lattice` folder.
 
 ---
 
 ## Project layout
 
 ```
-PassesTUI/
+Lattice/
 ├─ Lattice.pyw          Double-click launcher (opens a terminal, then runs)
 ├─ make_shortcut.ps1    Creates the Start Menu shortcut
 ├─ requirements.txt
