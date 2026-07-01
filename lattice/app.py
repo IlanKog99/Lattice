@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import math
-import time
 from pathlib import Path
 
 import pyperclip
@@ -134,9 +132,8 @@ class LatticeApp(App):
         if not self.grid.columns:
             self.set_status("Empty store — use /add to begin, or seed from a file")
         self.set_interval(1.0, self._poll_clipboard)
-        self.set_interval(0.2, self._breathe)
 
-    # --- ambient touches -----------------------------------------------
+    # --- clipboard match -----------------------------------------------
     def _poll_clipboard(self) -> None:
         try:
             text = pyperclip.paste()
@@ -145,16 +142,6 @@ class LatticeApp(App):
             return
         if text != gv._clip:
             gv.mark_clipboard(text)
-
-    def _breathe(self) -> None:
-        """A faint, slow background pulse so the grid feels alive."""
-        try:
-            gv = self.grid_view
-        except Exception:  # noqa: BLE001 - shutting down
-            return
-        w = math.sin(time.monotonic() * 0.6) * 0.5 + 0.5  # 0..1, ~10s period
-        r, g, b = (13, 16, 24) if (gv.move_mode or gv.rename_mode) else (10, 13, 19)
-        gv.styles.background = f"#{r + int(9 * w):02x}{g + int(10 * w):02x}{b + int(15 * w):02x}"
 
     # --- grid helpers --------------------------------------------------
     @property
