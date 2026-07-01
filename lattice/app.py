@@ -152,9 +152,9 @@ class LatticeApp(App):
             gv = self.grid_view
         except Exception:  # noqa: BLE001 - shutting down
             return
-        d = round(3 * (math.sin(time.monotonic() * 0.7) * 0.5 + 0.5))  # 0..3
+        w = math.sin(time.monotonic() * 0.6) * 0.5 + 0.5  # 0..1, ~10s period
         r, g, b = (13, 16, 24) if (gv.move_mode or gv.rename_mode) else (10, 13, 19)
-        gv.styles.background = f"#{r + d:02x}{g + d:02x}{b + d:02x}"
+        gv.styles.background = f"#{r + int(9 * w):02x}{g + int(10 * w):02x}{b + int(15 * w):02x}"
 
     # --- grid helpers --------------------------------------------------
     @property
