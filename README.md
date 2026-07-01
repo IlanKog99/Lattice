@@ -56,37 +56,6 @@ confirm popup: arrows or `A`/`D` switch buttons, `Enter` chooses, `B` returns to
 the list, `Esc` cancels. (While typing a value, letters go into the field, so
 back out of those with `Esc`.)
 
-### Find mode (`F`)
-
-Press `F` and start typing — Lattice matches your text against the **label
-column** and highlights every matching row in teal (distinct from the ember
-cursor). The cursor jumps to the first match's leftmost cell. `Tab` cycles to
-the next match (`Shift+Tab` for the previous). `Enter` keeps the cursor on the
-current match; `Esc` cancels and returns it to where you started.
-
-Example: typing `ha` lands you on the `IL-HA` row.
-
-### Move mode (`/move`)
-
-`/move` lets you reorder rows and columns:
-
-1. Move the cursor to the row/column you want and press **Space** to *grab* it.
-   The grabbed row and column are tinted.
-2. With it grabbed, `↑`/`↓` move that **row** up/down and `←`/`→` move that
-   **column** left/right (`W`/`A`/`S`/`D` too). Press **Space** again to drop and
-   grab a different one.
-3. **Enter** saves (asks to confirm); **Esc** cancels (also asks). Cancelling
-   puts everything back the way it was. A saved reorder can be reverted with
-   `/undo`.
-
-### Rename mode (`/rename`)
-
-`/rename` moves the cursor onto the **headers** only — the column headers along
-the top and the row labels down the left. Use the arrow keys or `W`/`A`/`S`/`D`
-to move among them. Press **R** to edit the selected header (type the new text,
-`Enter` saves, `Esc` cancels the edit). `Esc` while just navigating leaves
-rename mode. No confirmation — renames save immediately (and are undoable).
-
 ### Commands (type after `/`)
 
 Pressing `/` opens a command bar with an **autocomplete menu** above it, listing
