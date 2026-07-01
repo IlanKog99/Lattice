@@ -49,19 +49,17 @@ GridView.renamemode {
 .gridrow {
     height: 1;
     width: auto;
-    margin-bottom: 1;          /* a little breathing room between rows */
 }
 /* faint underline separating the column headers from the data */
 .gridrow.header {
     height: 2;
-    margin-bottom: 1;
+    margin-bottom: 0;
     border-bottom: solid #1b2230;
 }
 
 .cell {
     height: 1;
     padding: 0 1;
-    margin-right: 2;           /* a little breathing room between columns */
     overflow: hidden;
 }
 .celltext {
