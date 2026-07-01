@@ -58,7 +58,12 @@ row's `cells` list is kept exactly as wide as `columns` by `Grid.normalise()`.
   subclasses (use `entry_name`, `title_text`, etc.).
 - New slash commands: add an entry to `_COMMANDS` in `app.py` and a
   `StepModal` subclass in `screens.py`. Commands that aren't modals (e.g.
-  `/visible`, `/hide`) are handled inline in `LatticeApp.run_command`.
+  `/visible`, `/hide`, `/undo`, `/move`) are handled inline in
+  `LatticeApp.run_command`.
+- Move mode (`/move`) lives in `GridView`: it snapshots the grid on entry,
+  reorders live as the user grabs (space) and nudges rows/columns, then either
+  keeps the change (pushing the snapshot onto the undo stack) or restores the
+  snapshot on cancel. Both exits confirm via `ConfirmScreen`.
 - Value cells are **masked by default**. `app.revealed` plus a single timer
   drive a global reveal (`/visible [minutes]`, default 1); `Cell.show()` mirrors
   that state. Labels are never masked. Copy and edit always use the real value,

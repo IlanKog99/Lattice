@@ -28,14 +28,20 @@ GridView {
     scrollbar-color: #2a3343;
     scrollbar-size-vertical: 1;
 }
+/* subtle tint while reordering, so it's clear move mode is active */
+GridView.movemode {
+    background: #0d1018;
+}
 
 .gridrow {
     height: 1;
     width: auto;
 }
+/* faint underline separating the column headers from the data */
 .gridrow.header {
-    height: 1;
-    margin-bottom: 1;
+    height: 2;
+    margin-bottom: 0;
+    border-bottom: solid #1b2230;
 }
 
 .cell {
@@ -54,7 +60,11 @@ GridView {
     text-style: bold;
 }
 
-/* the left identifier column — styled like the column headers */
+/* the left identifier column — styled like the column headers, with a faint
+   vertical rule separating the row headers from the values */
+.cell.label {
+    border-right: solid #1b2230;
+}
 .cell.label .celltext {
     color: #8b97a8;
     text-style: bold;
@@ -67,6 +77,16 @@ GridView {
 }
 .cell.rowsel.label .celltext {
     color: #c4ccd6;
+}
+
+/* grabbed row / column in move mode (declared before .sel so the cursor
+   still shows on the grabbed cell) */
+.cell.grabrow,
+.cell.grabcol {
+    background: #34273f;
+}
+.cell.grabrow.grabcol {
+    background: #4a3557;
 }
 
 /* cursor */
@@ -266,7 +286,24 @@ ConfirmScreen {
     align: center middle;
     margin-top: 1;
 }
+/* frosted, theme-matched buttons: faint translucent fill, rounded, and an
+   ember-tinted focus state instead of the default red/blue variants */
 .confirm-row Button {
-    margin: 0 1;
+    margin: 0 2;
     min-width: 12;
+    height: 3;
+    color: #c4ccd6;
+    background: #c4ccd6 8%;
+    border: round #2f3a4a;
+    text-style: none;
+}
+.confirm-row Button:hover {
+    background: #ffffff 14%;
+    border: round #46566e;
+}
+.confirm-row Button:focus {
+    color: #ffffff;
+    background: #ff6a3d 25%;
+    border: round #ff6a3d;
+    text-style: bold;
 }

@@ -45,8 +45,8 @@ class ConfirmScreen(ModalScreen):
         with Vertical(classes="confirm-modal"):
             yield Static(self._question, classes="prompt")
             with Horizontal(classes="confirm-row"):
-                yield Button("Yes", id="yes", variant="error")
-                yield Button("No", id="no", variant="primary")
+                yield Button("Yes", id="yes")
+                yield Button("No", id="no")
             yield Static(CONFIRM_KEYS, classes="modal-keys")
 
     def on_mount(self) -> None:

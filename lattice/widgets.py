@@ -190,6 +190,11 @@ class GridView(VerticalScroll):
         self._find_origin = (0, 0)
         self._peek_cell: "Cell | None" = None
         self._peek_timer = None
+        self.move_mode = False
+        self.grabbed = False
+        self.grab_ri = 0
+        self.grab_ci = 0
+        self._move_original = None
 
     @property
     def grid(self):
@@ -206,7 +211,10 @@ class GridView(VerticalScroll):
             longest = len(self.grid.columns[ci].name)
             for ri in self.vrows:
                 longest = max(longest, len(self.grid.rows[ri].cells[ci]))
-            widths.append(max(12, min(longest + 2, 42)))
+            width = max(12, min(longest + 2, 42))
+            if ci == 0:
+                width += 1  # room for the row-header separator border
+            widths.append(width)
         return widths
 
     def rebuild(self) -> None:
@@ -220,9 +228,10 @@ class GridView(VerticalScroll):
 
         header_cells = []
         for w, ci in zip(widths, self.vcols):
+            classes = "cell hcell label" if ci == 0 else "cell hcell"
             box = Container(
                 Static(self.grid.columns[ci].name or " ", classes="celltext"),
-                classes="cell hcell",
+                classes=classes,
             )
             box.styles.width = w
             header_cells.append(box)
@@ -367,6 +376,87 @@ class GridView(VerticalScroll):
         self.focus()
         self.app.set_status("Cleared (undo with /undo)")
 
+    # --- move mode (reorder rows/columns) ------------------------------
+    def enter_move(self) -> None:
+        from .models import Grid
+
+        self.move_mode = True
+        self.grabbed = False
+        self._move_original = Grid.from_dict(self.grid.to_dict())
+        self.add_class("movemode")
+        self.focus()
+        self.app.set_status("Move: navigate, then space to grab a row + column")
+
+    def _grab(self) -> None:
+        self.grabbed = True
+        self.grab_ri = self.vrows[self.cursor[0]]
+        self.grab_ci = self.vcols[self.cursor[1]]
+        self._apply_grab()
+        self.app.set_status("Grabbed — arrows move the row (↑↓) and column (←→); space to drop")
+
+    def _drop(self) -> None:
+        self.grabbed = False
+        for cell in self.cells.values():
+            cell.remove_class("grabrow")
+            cell.remove_class("grabcol")
+        self.app.set_status("Dropped — navigate and grab another, or enter to save")
+
+    def _apply_grab(self) -> None:
+        gvr = self.vrows.index(self.grab_ri)
+        gvc = self.vcols.index(self.grab_ci)
+        for (r, c), cell in self.cells.items():
+            cell.set_class(r == gvr, "grabrow")
+            cell.set_class(c == gvc, "grabcol")
+
+    def _move_row(self, direction: int) -> None:
+        vis = self.grid.visible_row_indexes()
+        pos = vis.index(self.grab_ri)
+        npos = pos + direction
+        if not (0 <= npos < len(vis)):
+            return
+        i, j = vis[pos], vis[npos]
+        self.grid.rows[i], self.grid.rows[j] = self.grid.rows[j], self.grid.rows[i]
+        self.grab_ri = j
+
+    def _move_col(self, direction: int) -> None:
+        vis = [ci for ci in self.grid.visible_col_indexes() if ci != 0]
+        if self.grab_ci not in vis:
+            return
+        pos = vis.index(self.grab_ci)
+        npos = pos + direction
+        if not (0 <= npos < len(vis)):
+            return
+        i, j = vis[pos], vis[npos]
+        self.grid.columns[i], self.grid.columns[j] = self.grid.columns[j], self.grid.columns[i]
+        for row in self.grid.rows:
+            row.cells[i], row.cells[j] = row.cells[j], row.cells[i]
+        self.grab_ci = j
+
+    def _reorder(self, row: int = 0, col: int = 0) -> None:
+        if row:
+            self._move_row(row)
+        if col:
+            self._move_col(col)
+        self.rebuild()
+        self._select(self.cursor, False)
+        self.cursor = (self.vrows.index(self.grab_ri), self.vcols.index(self.grab_ci))
+        self._select(self.cursor, True)
+        self._apply_grab()
+
+    def finish_move(self, apply: bool) -> None:
+        if apply:
+            self.app.push_undo_state(self._move_original)
+            self.app.persist()
+        else:
+            self.app.grid = self._move_original
+        self.move_mode = False
+        self.grabbed = False
+        self._move_original = None
+        self.remove_class("movemode")
+        self.rebuild()
+        self.focus()
+        self.app.set_status("New order saved" if apply else "Move cancelled")
+
     # --- peek (hold v to reveal the current cell) ----------------------
     PEEK_HOLD = 0.7  # re-mask this long after the last v (i.e. after release)
 
@@ -440,8 +530,50 @@ class GridView(VerticalScroll):
         self.match_pos = 0
 
     # --- keys ----------------------------------------------------------
+    def _on_move_key(self, event) -> None:
+        key = event.key
+        if not self.grabbed:
+            if key in _MOVES:
+                event.stop()
+                self.move(*_MOVES[key])
+            elif key == "space":
+                event.stop()
+                self._grab()
+            elif key == "enter":
+                event.stop()
+                self.app.move_request_apply()
+            elif key == "escape":
+                event.stop()
+                self.app.move_request_cancel()
+            return
+        # grabbed: arrows/wasd reorder instead of moving the cursor
+        if key in ("up", "w"):
+            event.stop()
+            self._reorder(row=-1)
+        elif key in ("down", "s"):
+            event.stop()
+            self._reorder(row=1)
+        elif key in ("left", "a"):
+            event.stop()
+            self._reorder(col=-1)
+        elif key in ("right", "d"):
+            event.stop()
+            self._reorder(col=1)
+        elif key == "space":
+            event.stop()
+            self._drop()
+        elif key == "enter":
+            event.stop()
+            self.app.move_request_apply()
+        elif key == "escape":
+            event.stop()
+            self.app.move_request_cancel()
+
     def on_key(self, event) -> None:
         if self.editing:
+            return
+        if self.move_mode:
+            self._on_move_key(event)
             return
         key = event.key
         if key in _MOVES:
@@ -453,12 +585,15 @@ class GridView(VerticalScroll):
         elif key == "e":
             event.stop()
             self.edit()
-        elif key == "f":
+        elif key in ("f", "ctrl+f"):
             event.stop()
             self.app.open_find()
         elif key == "v":
             event.stop()
             self.peek()
+        elif key == "ctrl+z":
+            event.stop()
+            self.app.undo()
         elif key in ("delete", "backspace"):
             event.stop()
             self.clear()

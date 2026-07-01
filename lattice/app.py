@@ -10,8 +10,8 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
-from . import APP_NAME, __version__, store
-from .screens import AddScreen, MassScreen, RemoveScreen
+from . import APP_NAME, store
+from .screens import AddScreen, ConfirmScreen, MassScreen, RemoveScreen
 from .widgets import CommandInput, FindInput, GridView
 
 def _k(key: str, label: str) -> str:
@@ -26,8 +26,20 @@ HINTS = "   ".join(
         _k("f", "find"),
         _k("v", "peek"),
         _k("del", "clear"),
+        _k("ctrl+z", "undo"),
         _k("/", "commands"),
         _k("q", "quit"),
+    ]
+)
+
+MOVE_HINTS = "   ".join(
+    [
+        "[#ff6a3d b]MOVE MODE[/]",
+        _k("wasd/arrows", "cursor"),
+        _k("space", "grab/drop"),
+        _k("arrows", "reorder"),
+        _k("enter", "save"),
+        _k("esc", "cancel"),
     ]
 )
 
@@ -46,6 +58,7 @@ COMMAND_INFO = [
     ("add", "Add a row or column"),
     ("remove", "Hide a row or column"),
     ("mass", "Update many cells in order"),
+    ("move", "Reorder rows and columns"),
     ("undo", "Undo the last change"),
     ("visible", "Reveal values (e.g. /visible 5)"),
     ("hide", "Mask values now"),
@@ -72,8 +85,7 @@ class LatticeApp(App):
     # --- layout --------------------------------------------------------
     def compose(self) -> ComposeResult:
         yield Static(
-            f"[b]{APP_NAME}[/b]  [dim]v{__version__}[/dim]\n"
-            "[dim]a quiet little grid keeper[/dim]",
+            f"[b]{APP_NAME}[/b]\n[dim]a quiet little grid keeper[/dim]",
             id="topbar",
         )
         yield GridView(id="grid")
@@ -116,7 +128,10 @@ class LatticeApp(App):
         """Snapshot the grid *before* a change, so /undo can roll it back."""
         from .models import Grid
 
-        self._undo.append(Grid.from_dict(self.grid.to_dict()))
+        self.push_undo_state(Grid.from_dict(self.grid.to_dict()))
+
+    def push_undo_state(self, grid) -> None:
+        self._undo.append(grid)
         if len(self._undo) > UNDO_DEPTH:
             self._undo.pop(0)
 
@@ -129,15 +144,39 @@ class LatticeApp(App):
         self.refresh_grid()
         self.set_status("Undid last change")
 
+    # --- move mode -----------------------------------------------------
+    def enter_move(self) -> None:
+        gv = self.grid_view
+        if not gv.vrows or not gv.vcols:
+            self.set_status("Nothing to move")
+            return
+        gv.enter_move()
+
+    def move_request_apply(self) -> None:
+        self.push_screen(
+            ConfirmScreen("Save the new order?"),
+            lambda r: self.grid_view.finish_move(True) if r == "yes" else None,
+        )
+
+    def move_request_cancel(self) -> None:
+        self.push_screen(
+            ConfirmScreen("Discard changes and leave move mode?"),
+            lambda r: self.grid_view.finish_move(False) if r == "yes" else None,
+        )
+
     def refresh_grid(self, _result=None) -> None:
         self.grid_view.rebuild()
         self.grid_view.focus()
 
+    def _base_hints(self) -> str:
+        return MOVE_HINTS if self.grid_view.move_mode else HINTS
+
     def set_status(self, message: str | None = None) -> None:
         bar = self.query_one("#status", Static)
-        bar.update(message or HINTS)
+        base = self._base_hints()
+        bar.update(message or base)
         if message:
-            self.set_timer(2.6, lambda: bar.update(HINTS))
+            self.set_timer(2.6, lambda: bar.update(self._base_hints()))
 
     # --- command bar + autocomplete menu -------------------------------
     def open_command(self) -> None:
@@ -255,6 +294,9 @@ class LatticeApp(App):
             return
         if name == "undo":
             self.undo()
+            return
+        if name == "move":
+            self.enter_move()
             return
         screen = _COMMANDS.get(name)
         if screen is None:

@@ -37,9 +37,10 @@ reveal a value to copy it.
 | Mouse click | Jump the cursor straight to a value cell |
 | `Enter` or `Ctrl+C` | Copy the selected cell to the clipboard |
 | `E` | Edit the selected cell in place (`Enter` saves, `Esc` cancels) |
-| `F` | Find: jump to a row by typing part of its label (see below) |
+| `F` or `Ctrl+F` | Find: jump to a row by typing part of its label (see below) |
 | `V` (hold) | Peek: reveal just the selected cell while held; it re-masks shortly after you let go |
 | `Del` | Clear the selected cell (same as editing it and deleting everything) |
+| `Ctrl+Z` | Undo the last change (same as `/undo`) |
 | `/` | Open the command bar (`Enter` runs, `Esc` closes) |
 | `Q` | Quit |
 
@@ -63,6 +64,19 @@ current match; `Esc` cancels and returns it to where you started.
 
 Example: typing `ha` lands you on the `IL-HA` row.
 
+### Move mode (`/move`)
+
+`/move` lets you reorder rows and columns:
+
+1. Move the cursor to the row/column you want and press **Space** to *grab* it.
+   The grabbed row and column are tinted.
+2. With it grabbed, `↑`/`↓` move that **row** up/down and `←`/`→` move that
+   **column** left/right (`W`/`A`/`S`/`D` too). Press **Space** again to drop and
+   grab a different one.
+3. **Enter** saves (asks to confirm); **Esc** cancels (also asks). Cancelling
+   puts everything back the way it was. A saved reorder can be reverted with
+   `/undo`.
+
 ### Commands (type after `/`)
 
 Pressing `/` opens a command bar with an **autocomplete menu** above it, listing
@@ -75,6 +89,7 @@ also click an entry.
 | `/add` | Add a new row or column. Asks for a name, then walks you through each field. |
 | `/remove` | Hide a row or column. After you choose, a small **Yes / No** popup opens on top to confirm. Nothing is deleted — it is only removed from view, so it can come back later via `/undo`. |
 | `/mass` | Update many cells of one row or column in order. Type each new value and press `Enter`; an **empty line finishes** and saves. |
+| `/move` | Reorder rows and columns (see **Move mode** below). |
 | `/undo` | Undo the last change (edit, clear, add, hide, or mass update). Can be repeated to step further back. |
 | `/visible` | Reveal **all** values for **1 minute**, then they re-mask automatically. (To peek a single cell instead, hold `V`.) |
 | `/visible N` | Reveal for `N` minutes instead (e.g. `/visible 5`). |
