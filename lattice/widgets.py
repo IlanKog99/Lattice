@@ -13,6 +13,8 @@ import pyperclip
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Input, Static
 
+from .models import cell_text, is_formula
+
 # Keys that move the cursor, mapped to (row delta, col delta).
 _MOVES = {
     "up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1),
@@ -37,10 +39,12 @@ class BoxInput(Input):
         placeholder: str = "",
         id: str | None = None,
         classes: str | None = None,
+        on_format: Callable[[], None] | None = None,
     ) -> None:
         super().__init__(value=value, placeholder=placeholder, id=id, classes=classes)
         self._on_submit = on_submit
         self._on_cancel = on_cancel
+        self._on_format = on_format
 
     def on_key(self, event) -> None:
         if event.key == "enter":
@@ -49,6 +53,9 @@ class BoxInput(Input):
         elif event.key == "escape":
             event.stop()
             self._on_cancel()
+        elif event.key == "ctrl+f" and self._on_format is not None:
+            event.stop()
+            self._on_format()
 
 
 class FindInput(Input):
@@ -111,13 +118,16 @@ class Cell(Container):
     MASK = "••••••"
 
     def __init__(
-        self, value: str, vrow: int, vcol: int, *, is_label: bool = False, header: bool = False
+        self, value, vrow: int, vcol: int, *, is_label: bool = False, header: bool = False
     ) -> None:
         classes = "cell"
         if is_label:
             classes += " label"   # row-header column: colour + a divider border
         if header:
             classes += " hcell"   # top header row
+        self._is_formula = is_formula(value)
+        if self._is_formula:
+            classes += " formula"
         super().__init__(classes=classes)
         self._value = value
         self._is_label = is_label
@@ -135,11 +145,13 @@ class Cell(Container):
         if not self._value:
             return " "
         if self._is_label or self._header or self._revealed:
-            return self._value
-        return self.MASK
+            text = cell_text(self._value)
+        else:
+            text = self.MASK
+        return f"ƒ {text}" if self._is_formula else text
 
     @property
-    def value(self) -> str:
+    def value(self):
         return self._value
 
     def show(self, revealed: bool) -> None:
@@ -149,8 +161,10 @@ class Cell(Container):
         except Exception:  # noqa: BLE001 - inner Static not composed yet
             pass
 
-    def set_value(self, value: str) -> None:
+    def set_value(self, value) -> None:
         self._value = value
+        self._is_formula = is_formula(value)
+        self.set_class(self._is_formula, "formula")
         self.query_one(".celltext", Static).update(self._display())
 
     def select(self, on: bool) -> None:
@@ -221,7 +235,9 @@ class GridView(VerticalScroll):
         for ci in self.vcols:
             longest = len(self.grid.columns[ci].name)
             for ri in self.vrows:
-                longest = max(longest, len(self.grid.rows[ri].cells[ci]))
+                value = self.grid.rows[ri].cells[ci]
+                text_len = len(cell_text(value)) + (2 if is_formula(value) else 0)
+                longest = max(longest, text_len)
             width = max(12, min(longest + 2, 42))
             if ci == 0:
                 width += 1  # room for the row-header separator border
@@ -345,8 +361,18 @@ class GridView(VerticalScroll):
         cell = self.current()
         if cell is None:
             return
+        if is_formula(cell.value):
+            from .screens import FormulaPromptScreen
+
+            self.app.push_screen(FormulaPromptScreen(cell.value), lambda text: self._finish_copy(cell, text))
+            return
+        self._finish_copy(cell, cell.value)
+
+    def _finish_copy(self, cell: Cell, text) -> None:
+        if text is None:  # cancelled the INPT prompt
+            return
         try:
-            pyperclip.copy(cell.value)
+            pyperclip.copy(text)
         except Exception:  # noqa: BLE001 - clipboard backend missing
             self.app.set_status("Clipboard unavailable on this system")
             return
@@ -359,9 +385,30 @@ class GridView(VerticalScroll):
         cell = self.current()
         if cell is None:
             return
-        self.editing = True
         ri = self.vrows[self.cursor[0]]
         ci = self.vcols[self.cursor[1]]
+
+        if is_formula(cell.value):
+            from .screens import FormulaScreen
+
+            self.editing = True
+
+            def done(spec) -> None:
+                self.editing = False
+                self.focus()
+                if spec is None:
+                    self.app.set_status("Edit cancelled")
+                    return
+                self.app.push_undo()
+                self.grid.set_cell(ri, ci, spec)
+                self.app.persist()
+                self.rebuild()
+                self.app.set_status("Saved")
+
+            self.app.push_screen(FormulaScreen(prefill=cell.value), done)
+            return
+
+        self.editing = True
 
         def submit(value: str) -> None:
             self.app.push_undo()

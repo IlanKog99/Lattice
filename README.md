@@ -28,6 +28,10 @@ your clipboard is also faintly highlighted wherever it appears in the grid.
 `/visible` (see below). Copying still works while masked — you never have to
 reveal a value to copy it.
 
+A cell can also be a **formula** instead of a plain value — flagged with a
+small `ƒ` marker and a teal rule. Copying one asks for a whole number and
+copies the computed result instead of a fixed string (see below).
+
 ---
 
 ## Controls
@@ -65,7 +69,7 @@ also click an entry.
 
 | Command | What it does |
 |---------|--------------|
-| `/add` | Add a new row or column. Asks for a name, then walks you through each field. |
+| `/add` | Add a new row or column. Asks for a name, then walks you through each field. Press **Ctrl+F** on a value step to make that field a formula instead (see below). |
 | `/remove` | Hide a row or column. After you choose, a small **Yes / No** popup opens on top to confirm. Nothing is deleted — it is only removed from view, so it can come back later via `/undo`. |
 | `/mass` | Update many cells of one row or column in order. Type each new value and press `Enter`; an **empty line finishes** and saves. |
 | `/move` | Reorder rows and columns (see **Move mode** below). |
@@ -74,6 +78,21 @@ also click an entry.
 | `/visible` | Reveal **all** values for **1 minute**, then they re-mask automatically. (To peek a single cell instead, hold `V`.) |
 | `/visible N` | Reveal for `N` minutes instead (e.g. `/visible 5`). |
 | `/hide` | Re-mask values immediately, before the timer runs out. |
+
+### Formula cells
+
+While entering a value in `/add` (or editing an existing formula cell with
+`E`), press **Ctrl+F** to make that field a formula instead of a fixed value:
+
+1. Choose whether it has a **prefix**, a **suffix**, **both**, or **none** —
+   static text glued to the start and/or end of the result.
+2. Type a **formula** using `INPT` for the number you'll supply later, and
+   the four basic operators `+ - * /` (integers only; `/` rounds down).
+
+Example: prefix `asd`, suffix `zxc`, formula `INPT * 2 * 10`. Copying that
+cell (`Enter` / `Ctrl+C`) asks for `INPT`'s value — enter `5` and `asd100zxc`
+lands on your clipboard. The formula and its static parts stay masked like
+any other value until revealed with `/visible`.
 
 ---
 
@@ -120,9 +139,10 @@ Lattice/
 └─ lattice/
    ├─ app.py            App shell: top bar, grid, command bar, status line
    ├─ widgets.py        The editable grid, cells, and box input
-   ├─ screens.py        /add, /remove, /mass modal flows
+   ├─ screens.py        /add, /remove, /mass, formula modal flows
    ├─ models.py         Grid / Column / Row data model
    ├─ store.py          Load & atomic auto-save
    ├─ codec.py          Reversible byte mangling for the store
+   ├─ formula.py        Safe INPT / + - * / evaluator for formula cells
    └─ seed.py           One-shot importer from a plain-text table
 ```

@@ -41,14 +41,17 @@ Do not add unlock prompts, key derivation, or claims of real security.
 | `Lattice.pyw` | Double-click launcher. Re-spawns into a real terminal because a TUI can't draw under windowless `pythonw`. |
 | `lattice/app.py` | `LatticeApp`: top bar, grid, command bar, status line, command dispatch, `persist()`. |
 | `lattice/widgets.py` | `GridView` (navigation, copy, in-place edit via `e`, find mode via `f`), `Cell`, `BoxInput`, `CommandInput`, `FindInput`. Find matches the label column and highlights matches with the `match` class (teal), separate from the `sel` cursor (ember). |
-| `lattice/screens.py` | `StepModal` base (choice/text steps, key legend, `b`-to-go-back via a history stack) plus `AddScreen`, `RemoveScreen`, `MassScreen`. `ConfirmScreen` is a separate yes/no popup pushed on top for `/remove` (dismisses with `"yes"`/`"no"`/`"back"`/`"cancel"`). |
-| `lattice/models.py` | `Grid` / `Column` / `Row` dataclasses, visibility views, and mutations. |
+| `lattice/screens.py` | `StepModal` base (choice/text steps, key legend, `b`-to-go-back via a history stack) plus `AddScreen`, `RemoveScreen`, `MassScreen`, `FormulaScreen`, `FormulaPromptScreen`. `ConfirmScreen` is a separate yes/no popup pushed on top for `/remove` (dismisses with `"yes"`/`"no"`/`"back"`/`"cancel"`). |
+| `lattice/models.py` | `Grid` / `Column` / `Row` dataclasses, visibility views, mutations, and the `is_formula` / `cell_text` helpers for the two cell kinds. |
 | `lattice/store.py` | `load()` and atomic `save()` through the codec. `DATA_FILE` lives in the project root. |
 | `lattice/codec.py` | `pack()` / `unpack()`: utf-8 → zlib → rolling XOR → base85. The reversible mangling. Changing `_MASK` or `_TAG` invalidates existing stores. |
+| `lattice/formula.py` | Safe `+ - * /` / `INPT` evaluator for formula cells, parsed with `ast` (never `eval()`). |
 | `lattice/seed.py` | One-shot importer from a pipe-delimited plain-text table. Reads the source at runtime; never embeds it. |
 
 Data model: column 0 is the label column; columns 1+ are value columns. Every
 row's `cells` list is kept exactly as wide as `columns` by `Grid.normalise()`.
+A cell holds either a plain string, or a **formula spec** — a
+`{"prefix", "suffix", "formula"}` dict — distinguished by `models.is_formula()`.
 
 ## Conventions
 
@@ -74,6 +77,16 @@ row's `cells` list is kept exactly as wide as `columns` by `Grid.normalise()`.
   drive a global reveal (`/visible [minutes]`, default 1); `Cell.show()` mirrors
   that state. Labels are never masked. Copy and edit always use the real value,
   so revealing is never required to copy.
+- Formula cells: while entering a value in `/add` (or editing an existing
+  formula cell with `e`), `Ctrl+F` opens `FormulaScreen` to build a
+  `{prefix, suffix, formula}` spec instead of a plain string. `formula.py`
+  parses the formula with `ast` — only `INPT`, integer literals, and
+  `+ - * /` are legal, so a user-typed formula can never execute arbitrary
+  code. `/` is floor division so results always stay integers. Copying a
+  formula cell pushes `FormulaPromptScreen` to ask for `INPT`'s value (with
+  live integer validation) and copies `prefix + result + suffix`. `/mass`
+  only ever writes plain strings, so mass-updating a formula cell downgrades
+  it back to a string.
 
 ## Testing
 

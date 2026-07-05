@@ -83,6 +83,11 @@ GridView.renamemode {
     text-style: bold;
 }
 
+/* formula cells — a thin teal rule flags "copying this asks for a number" */
+.cell.formula {
+    border-left: solid #2a7d8c;
+}
+
 /* clipboard match — a silent, muted purple: noticeable, not loud */
 .cell.clipmatch {
     background: #241d38;

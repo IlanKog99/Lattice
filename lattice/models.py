@@ -20,8 +20,22 @@ class Column:
 
 @dataclass
 class Row:
-    cells: list[str] = field(default_factory=list)
+    cells: list[Any] = field(default_factory=list)
     hidden: bool = False
+
+
+def is_formula(value: Any) -> bool:
+    """True if `value` is a formula spec ({prefix, suffix, formula}) rather than a plain string."""
+    return isinstance(value, dict)
+
+
+def formula_preview(spec: dict) -> str:
+    return f"{spec.get('prefix', '')}INPT{spec.get('suffix', '')}"
+
+
+def cell_text(value: Any) -> str:
+    """Render any cell value (plain string or formula spec) as displayable text."""
+    return formula_preview(value) if is_formula(value) else value
 
 
 @dataclass
@@ -62,15 +76,15 @@ class Grid:
         return [i for i, r in enumerate(self.rows) if not r.hidden]
 
     # --- mutations -----------------------------------------------------
-    def set_cell(self, row_idx: int, col_idx: int, value: str) -> None:
+    def set_cell(self, row_idx: int, col_idx: int, value: Any) -> None:
         self.rows[row_idx].cells[col_idx] = value
 
-    def add_row(self, cells: list[str]) -> None:
+    def add_row(self, cells: list[Any]) -> None:
         row = Row(list(cells))
         self.rows.append(row)
         self.normalise()
 
-    def add_column(self, name: str, values: list[str]) -> None:
+    def add_column(self, name: str, values: list[Any]) -> None:
         self.columns.append(Column(name))
         for r, v in zip(self.rows, values):
             r.cells.append(v)

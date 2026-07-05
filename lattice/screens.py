@@ -18,6 +18,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, OptionList, Static
 from textual.widgets.option_list import Option
 
+from . import formula
+from .models import cell_text
 from .widgets import BoxInput
 
 
@@ -28,6 +30,7 @@ def _legend(pairs: list[tuple[str, str]]) -> str:
 
 CHOICE_KEYS = _legend([("↑↓ / w s", "move"), ("enter", "select"), ("b", "back"), ("esc", "cancel")])
 TEXT_KEYS = _legend([("enter", "save"), ("esc", "cancel")])
+FORMAT_TEXT_KEYS = _legend([("enter", "save"), ("ctrl+f", "formula"), ("esc", "cancel")])
 CONFIRM_KEYS = _legend([("←→ / a d", "switch"), ("enter", "select"), ("b", "back"), ("esc", "cancel")])
 
 
@@ -131,13 +134,23 @@ class StepModal(ModalScreen):
         self._swap(Static(prompt, classes="prompt"), option_list, focus=option_list)
         self.set_keys(CHOICE_KEYS)
 
-    def ask_text(self, prompt: str, on_submit: Callable[[str], None], placeholder: str = "") -> None:
+    def ask_text(
+        self,
+        prompt: str,
+        on_submit: Callable[[str], None],
+        placeholder: str = "",
+        initial: str = "",
+        on_format: Callable[[], None] | None = None,
+    ) -> None:
         def deferred(value: str) -> None:
             self.call_after_refresh(on_submit, value)
 
-        field = BoxInput("", deferred, self.cancel, placeholder=placeholder, classes="modalinput")
+        field = BoxInput(
+            initial, deferred, self.cancel,
+            placeholder=placeholder, classes="modalinput", on_format=on_format,
+        )
         self._swap(Static(prompt, classes="prompt"), field, focus=field)
-        self.set_keys(TEXT_KEYS)
+        self.set_keys(TEXT_KEYS if on_format is None else FORMAT_TEXT_KEYS)
 
     # --- events --------------------------------------------------------
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
@@ -218,12 +231,22 @@ class AddScreen(StepModal):
             f"Value for “{label}”  ({self.idx + 1}/{len(self.targets)}):",
             self._value,
             placeholder="leave blank for empty",
+            on_format=self._enter_format,
         )
 
-    def _value(self, value: str) -> None:
+    def _value(self, value) -> None:
         self.values.append(value)
         self.idx += 1
         self._collect()  # next field; no history push (text steps)
+
+    def _enter_format(self) -> None:
+        self.app.push_screen(FormulaScreen(), self._format_done)
+
+    def _format_done(self, spec: dict | None) -> None:
+        if spec is None:  # cancelled the formula wizard
+            self._collect()  # re-show the plain text step for this field
+            return
+        self._value(spec)
 
     def _commit(self) -> None:
         self.app.push_undo()
@@ -348,7 +371,7 @@ class MassScreen(StepModal):
         self.ask_text(
             f"{label}  ({self.idx + 1}/{len(self.fields)})  —  empty line finishes:",
             self._entered,
-            placeholder=self._current(self.idx) or "empty",
+            placeholder=cell_text(self._current(self.idx)) or "empty",
         )
 
     def _entered(self, value: str) -> None:
@@ -366,3 +389,124 @@ class MassScreen(StepModal):
         self.changed = True
         self.idx += 1
         self._prompt()  # next field; no history push (text steps)
+
+
+class FormulaScreen(StepModal):
+    """Ctrl+F sub-flow: build a {prefix, suffix, formula} spec for a cell."""
+
+    title_text = "Formula  —  prefix / suffix / formula"
+
+    def __init__(self, prefill: dict | None = None) -> None:
+        super().__init__()
+        self._prefill = prefill or {}
+
+    def start(self) -> None:
+        self.step(self._pick_parts)
+
+    def cancel(self) -> None:
+        self.dismiss(None)
+
+    def _pick_parts(self) -> None:
+        self.ask_choice(
+            "Static text — prefix, suffix, both, or none?",
+            [("Prefix only", "prefix"), ("Suffix only", "suffix"), ("Both", "both"), ("None", "none")],
+            self._parts_chosen,
+        )
+
+    def _parts_chosen(self, choice: str) -> None:
+        self.parts = choice
+        self.prefix = ""
+        self.suffix = ""
+        if choice in ("prefix", "both"):
+            self.step(self._ask_prefix)
+        elif choice == "suffix":
+            self.step(self._ask_suffix)
+        else:
+            self.step(self._ask_formula)
+
+    def _ask_prefix(self) -> None:
+        self.ask_text(
+            "Prefix (static text before the result):",
+            self._prefix_entered,
+            initial=self._prefill.get("prefix", ""),
+        )
+
+    def _prefix_entered(self, value: str) -> None:
+        self.prefix = value
+        self.step(self._ask_suffix if self.parts == "both" else self._ask_formula)
+
+    def _ask_suffix(self) -> None:
+        self.ask_text(
+            "Suffix (static text after the result):",
+            self._suffix_entered,
+            initial=self._prefill.get("suffix", ""),
+        )
+
+    def _suffix_entered(self, value: str) -> None:
+        self.suffix = value
+        self.step(self._ask_formula)
+
+    def _ask_formula(self) -> None:
+        self.ask_text(
+            "Formula — INPT is the number entered at copy time (+ - * / only):",
+            self._formula_entered,
+            initial=self._prefill.get("formula", ""),
+            placeholder="e.g. INPT * 2 * 10",
+        )
+
+    def _formula_entered(self, value: str) -> None:
+        value = value.strip()
+        if not value or not formula.validate(value):
+            self.app.set_status("Bad formula — only INPT, whole numbers, + - * /")
+            self._ask_formula()  # re-ask; no history push
+            return
+        self.dismiss({"prefix": self.prefix, "suffix": self.suffix, "formula": value})
+
+
+class FormulaPromptScreen(ModalScreen):
+    """Copy-time popup: ask for INPT's value, dismiss with the computed string (or None)."""
+
+    def __init__(self, spec: dict) -> None:
+        super().__init__()
+        self._spec = spec
+
+    def compose(self):
+        with Vertical(classes="modal"):
+            yield Static("Enter a whole number for INPT:", classes="modal-title")
+            yield Static("", id="formula-error", classes="prompt")
+            yield BoxInput("", self._submit, self._cancel, classes="modalinput")
+            yield Static(TEXT_KEYS, classes="modal-keys")
+
+    def on_mount(self) -> None:
+        self.query_one(BoxInput).focus()
+
+    def on_input_changed(self, event) -> None:
+        self._check(event.value)
+
+    def _check(self, text: str) -> bool:
+        text = text.strip()
+        error = self.query_one("#formula-error", Static)
+        if not text or text == "-":
+            error.update("")
+            return False
+        try:
+            int(text)
+        except ValueError:
+            error.update("[#ff6a3d]Whole numbers only[/]")
+            return False
+        error.update("")
+        return True
+
+    def _submit(self, text: str) -> None:
+        if not self._check(text):
+            return
+        try:
+            result = formula.evaluate(self._spec["formula"], int(text.strip()))
+        except ZeroDivisionError:
+            self.query_one("#formula-error", Static).update("[#ff6a3d]Division by zero[/]")
+            return
+        computed = f"{self._spec.get('prefix', '')}{result}{self._spec.get('suffix', '')}"
+        self.dismiss(computed)
+
+    def _cancel(self) -> None:
+        self.dismiss(None)
