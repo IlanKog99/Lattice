@@ -408,8 +408,14 @@ class FormulaScreen(StepModal):
 
     def _pick_parts(self) -> None:
         self.ask_choice(
-            "Static text — prefix, suffix, both, or none?",
-            [("Prefix only", "prefix"), ("Suffix only", "suffix"), ("Both", "both"), ("None", "none")],
+            "Static text — prefix, suffix, both, none, or type it all at once?",
+            [
+                ("Prefix only", "prefix"),
+                ("Suffix only", "suffix"),
+                ("Both", "both"),
+                ("None", "none"),
+                ("Simple: prefix(formula)suffix", "simple"),
+            ],
             self._parts_chosen,
         )
 
@@ -417,12 +423,36 @@ class FormulaScreen(StepModal):
         self.parts = choice
         self.prefix = ""
         self.suffix = ""
-        if choice in ("prefix", "both"):
+        if choice == "simple":
+            self.step(self._ask_simple)
+        elif choice in ("prefix", "both"):
             self.step(self._ask_prefix)
         elif choice == "suffix":
             self.step(self._ask_suffix)
         else:
             self.step(self._ask_formula)
+
+    def _ask_simple(self) -> None:
+        prefill = self._prefill
+        initial = (
+            f"{prefill.get('prefix', '')}({prefill.get('formula', '')}){prefill.get('suffix', '')}"
+            if prefill else ""
+        )
+        self.ask_text(
+            "Type it all as one line — wrap the formula in ( ):",
+            self._simple_entered,
+            initial=initial,
+            placeholder="e.g. asd(INPT * 2 * 3)zxc",
+        )
+
+    def _simple_entered(self, value: str) -> None:
+        try:
+            spec = formula.parse_simple(value.strip())
+        except ValueError as exc:
+            self.app.set_status(str(exc))
+            self._ask_simple()  # re-ask; no history push
+            return
+        self.dismiss(spec)
 
     def _ask_prefix(self) -> None:
         self.ask_text(

@@ -68,6 +68,35 @@ def _eval(node: ast.AST, inpt: int) -> int:
     return node.value  # ast.Constant
 
 
+def parse_simple(text: str) -> dict:
+    """Parse "prefix(formula)suffix" into a {prefix, suffix, formula} spec.
+
+    Raises ValueError if there isn't exactly one balanced (...) group, or the
+    formula inside it doesn't validate.
+    """
+    start = text.find("(")
+    if start == -1:
+        raise ValueError("wrap the formula in parentheses, e.g. asd(INPT * 2)zxc")
+    depth = 0
+    end = None
+    for i in range(start, len(text)):
+        if text[i] == "(":
+            depth += 1
+        elif text[i] == ")":
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+    if end is None:
+        raise ValueError("unbalanced parentheses")
+    prefix, inner, suffix = text[:start], text[start + 1:end], text[end + 1:]
+    if "(" in suffix or ")" in suffix:
+        raise ValueError("only one ( ) group is supported")
+    if not validate(inner):
+        raise ValueError(f"bad formula: {inner!r}")
+    return {"prefix": prefix, "suffix": suffix, "formula": inner}
+
+
 def demo() -> None:
     assert validate("INPT * 2 * 10")
     assert validate("5 * 2")

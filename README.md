@@ -82,12 +82,17 @@ also click an entry.
 ### Formula cells
 
 While entering a value in `/add` (or editing an existing formula cell with
-`E`), press **Ctrl+F** to make that field a formula instead of a fixed value:
+`E`), press **Ctrl+F** to make that field a formula instead of a fixed value.
+Two ways to build it:
 
-1. Choose whether it has a **prefix**, a **suffix**, **both**, or **none** —
-   static text glued to the start and/or end of the result.
-2. Type a **formula** using `INPT` for the number you'll supply later, and
-   the four basic operators `+ - * /` (integers only; `/` rounds down).
+- **Step-by-step:** choose whether it has a **prefix**, a **suffix**,
+  **both**, or **none** — static text glued to the start and/or end of the
+  result — then type the **formula** using `INPT` for the number you'll
+  supply later, and the four basic operators `+ - * /` (integers only; `/`
+  rounds down).
+- **Simple (one line):** pick "Simple: prefix(formula)suffix" and type it
+  all at once, e.g. `asd(INPT * 2 * 3)zxc` — everything inside the
+  parentheses is the formula, everything outside is prefix/suffix.
 
 Example: prefix `asd`, suffix `zxc`, formula `INPT * 2 * 10`. Copying that
 cell (`Enter` / `Ctrl+C`) asks for `INPT`'s value — enter `5` and `asd100zxc`

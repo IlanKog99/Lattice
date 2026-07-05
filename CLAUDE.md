@@ -79,7 +79,10 @@ A cell holds either a plain string, or a **formula spec** — a
   so revealing is never required to copy.
 - Formula cells: while entering a value in `/add` (or editing an existing
   formula cell with `e`), `Ctrl+F` opens `FormulaScreen` to build a
-  `{prefix, suffix, formula}` spec instead of a plain string. `formula.py`
+  `{prefix, suffix, formula}` spec instead of a plain string, either
+  step-by-step (prefix/suffix/both/none, then the formula) or in one line via
+  `formula.parse_simple("prefix(formula)suffix")` — bracket-depth matched, so
+  a formula that itself contains parens still parses correctly. `formula.py`
   parses the formula with `ast` — only `INPT`, integer literals, and
   `+ - * /` are legal, so a user-typed formula can never execute arbitrary
   code. `/` is floor division so results always stay integers. Copying a
