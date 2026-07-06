@@ -501,10 +501,13 @@ class FormulaPromptScreen(ModalScreen):
         self._spec = spec
 
     def compose(self):
-        with Vertical(classes="modal"):
-            yield Static("Enter a whole number for INPT:", classes="modal-title")
-            yield Static("", id="formula-error", classes="prompt")
-            yield BoxInput("", self._submit, self._cancel, classes="modalinput")
+        with Vertical(classes="modal formula-prompt"):
+            yield Static("ƒ  Enter a whole number for INPT", classes="modal-title")
+            yield Static("", id="formula-error", classes="formula-error")
+            yield BoxInput(
+                "", self._submit, self._cancel,
+                classes="modalinput", id="formula-input", placeholder="whole number",
+            )
             yield Static(TEXT_KEYS, classes="modal-keys")
 
     def on_mount(self) -> None:

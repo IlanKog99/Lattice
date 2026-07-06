@@ -333,3 +333,30 @@ ConfirmScreen {
     border: round #ff6a3d;
     text-style: bold;
 }
+
+/* formula copy-time prompt — teal, matching the ƒ marker on formula cells;
+   centered like every other popup instead of pinned top-left */
+FormulaPromptScreen {
+    align: center middle;
+    background: #0a0d13 55%;
+}
+.formula-prompt {
+    width: 46;
+    padding: 1 2;
+    background: #11161f;
+    border: heavy #2a7d8c;
+}
+.formula-prompt .modal-title {
+    color: #2a7d8c;
+}
+.formula-error {
+    height: 1;
+    margin-bottom: 1;
+    color: #ff6a3d;
+}
+.formula-prompt .modalinput {
+    border: tall #2a3343;
+}
+.formula-prompt .modalinput:focus {
+    border: tall #2a7d8c;
+}
