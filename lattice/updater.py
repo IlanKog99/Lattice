@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 import zipfile
@@ -34,6 +35,13 @@ REPO = "Lattice"
 API_URL = f"https://api.github.com/repos/{OWNER}/{REPO}/releases/latest"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 REQUEST_TIMEOUT = 10
+STAGE_DELAY = 1.2  # keep each status visible long enough to actually read
+
+
+def _report(on_status: Callable[[str | None], None], status: str | None) -> None:
+    on_status(status)
+    if status is not None:
+        time.sleep(STAGE_DELAY)
 
 
 def parse_version(tag: str) -> tuple[int, ...]:
@@ -132,13 +140,13 @@ def run_update_check(on_status: Callable[[str | None], None]) -> None:
     if already current or if any step fails — this never surfaces as an
     error to the user.
     """
-    on_status("checking for update")
+    _report(on_status, "checking for update")
     release = fetch_latest_release()
     if release is None or not is_newer(release["tag_name"], __version__):
         on_status(None)
         return
 
-    on_status("downloading update")
+    _report(on_status, "downloading update")
     with tempfile.TemporaryDirectory(prefix="lattice_update_") as tmp:
         tmp_path = Path(tmp)
         zip_path = download_zip(release["zipball_url"], tmp_path)
@@ -146,7 +154,7 @@ def run_update_check(on_status: Callable[[str | None], None]) -> None:
             on_status(None)
             return
 
-        on_status("installing update")
+        _report(on_status, "installing update")
         extracted = extract_and_strip(zip_path, tmp_path / "extracted")
         if extracted is None:
             on_status(None)
@@ -155,4 +163,4 @@ def run_update_check(on_status: Callable[[str | None], None]) -> None:
         overlay(extracted, PROJECT_ROOT)
         pip_install()
 
-    on_status("relaunch to update")
+    _report(on_status, "relaunch to update")
