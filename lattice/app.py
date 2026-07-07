@@ -105,13 +105,14 @@ class LatticeApp(App):
 
     # --- layout --------------------------------------------------------
     def compose(self) -> ComposeResult:
-        with Horizontal(id="topbar"):
-            yield Static(
-                f"[b]{APP_NAME}[/b]\n[dim]a quiet little grid keeper[/dim]",
-                id="appname",
-            )
-            yield Static("", id="saving")
-            yield Static("", id="update")
+        with Vertical(id="topbar"):
+            with Horizontal(id="topbar-row"):
+                yield Static(
+                    f"[b]{APP_NAME}[/b]\n[dim]a quiet little grid keeper[/dim]",
+                    id="appname",
+                )
+                yield Static("", id="saving")
+                yield Static("", id="update")
             yield Static("", id="sparks")
         yield GridView(id="grid")
         yield Static(HINTS, id="status")
@@ -177,12 +178,16 @@ class LatticeApp(App):
         except Exception:  # noqa: BLE001 - widget gone during shutdown
             pass
 
-    # --- top-bar sparks (a quiet twinkle, not a wash) --------------------
+    # --- top-bar sparks (a quiet twinkle across the whole bar, standing in
+    # for the old static border-bottom line — not a wash, just a couple of
+    # faint points of light passing through at any given moment) ----------
+    SPARK_WIDTH = 300  # wider than any real terminal; Static clips the rest
+    SPARK_DENSITY = 2  # bright points visible at once, out of SPARK_WIDTH
+
     def _spark(self) -> None:
-        width = 20
-        bright = random.sample(range(width), k=random.choice((1, 1, 2)))
+        bright = set(random.sample(range(self.SPARK_WIDTH), k=self.SPARK_DENSITY))
         chars = "".join(
-            "[#ff6a3d]·[/]" if i in bright else "[#1a212e]·[/]" for i in range(width)
+            "[#ff6a3d]─[/]" if i in bright else "[#1a212e]─[/]" for i in range(self.SPARK_WIDTH)
         )
         try:
             self.query_one("#sparks", Static).update(chars)
