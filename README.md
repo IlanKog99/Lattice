@@ -32,6 +32,13 @@ A cell can also be a **formula** instead of a plain value — flagged with a
 small `ƒ` marker and a teal rule. Copying one asks for a whole number and
 copies the computed result instead of a fixed string (see below).
 
+Lattice checks for updates in the background on launch — it never blocks
+what you're doing. If a newer version is out, a small indicator next to the
+app name walks through **checking for update** → **downloading update** →
+**installing update** → **relaunch to update**. That last one sticks around:
+close and reopen Lattice whenever you're ready, and the new version loads.
+Your grid is never touched by an update.
+
 ---
 
 ## Controls
@@ -149,5 +156,6 @@ Lattice/
    ├─ store.py          Load & atomic auto-save
    ├─ codec.py          Reversible byte mangling for the store
    ├─ formula.py        Safe INPT / + - * / evaluator for formula cells
+   ├─ updater.py        Background self-update from GitHub releases
    └─ seed.py           One-shot importer from a plain-text table
 ```

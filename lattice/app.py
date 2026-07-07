@@ -11,7 +11,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
-from . import APP_NAME, store
+from . import APP_NAME, store, updater
 from .screens import AddScreen, ConfirmScreen, MassScreen, RemoveScreen
 from .widgets import CommandInput, FindInput, GridView
 
@@ -106,6 +106,7 @@ class LatticeApp(App):
                 id="appname",
             )
             yield Static("", id="saving")
+            yield Static("", id="update")
         yield GridView(id="grid")
         yield Static(HINTS, id="status")
         with Vertical(id="findbar"):
@@ -132,6 +133,23 @@ class LatticeApp(App):
         if not self.grid.columns:
             self.set_status("Empty store — use /add to begin, or seed from a file")
         self.set_interval(1.0, self._poll_clipboard)
+        self.run_worker(self._check_for_update, thread=True)
+
+    # --- background self-update -----------------------------------------
+    def _check_for_update(self) -> None:
+        updater.run_update_check(self._set_update_status)
+
+    def _set_update_status(self, status: str | None) -> None:
+        self.call_from_thread(self._show_update_status, status)
+
+    def _show_update_status(self, status: str | None) -> None:
+        indicator = self.query_one("#update", Static)
+        if status is None:
+            indicator.display = False
+            return
+        indicator.display = True
+        icon = "✓" if status == "relaunch to update" else "◐"
+        indicator.update(f"[#2a7d8c]{icon}[/] [#6b7787]{status}[/]")
 
     # --- clipboard match -----------------------------------------------
     def _poll_clipboard(self) -> None:

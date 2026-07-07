@@ -46,6 +46,7 @@ Do not add unlock prompts, key derivation, or claims of real security.
 | `lattice/store.py` | `load()` and atomic `save()` through the codec. `DATA_FILE` lives in the project root. |
 | `lattice/codec.py` | `pack()` / `unpack()`: utf-8 → zlib → rolling XOR → base85. The reversible mangling. Changing `_MASK` or `_TAG` invalidates existing stores. |
 | `lattice/formula.py` | Safe `+ - * /` / `INPT` evaluator for formula cells, parsed with `ast` (never `eval()`). |
+| `lattice/updater.py` | Background self-updater: checks GitHub Releases against `__version__`, downloads and overlays a newer release, best-effort `pip install`. See Conventions below. |
 | `lattice/seed.py` | One-shot importer from a pipe-delimited plain-text table. Reads the source at runtime; never embeds it. |
 
 Data model: column 0 is the label column; columns 1+ are value columns. Every
@@ -90,6 +91,21 @@ A cell holds either a plain string, or a **formula spec** — a
   live integer validation) and copies `prefix + result + suffix`. `/mass`
   only ever writes plain strings, so mass-updating a formula cell downgrades
   it back to a string.
+- Self-update: `on_mount` spawns `run_worker(self._check_for_update,
+  thread=True)`; `updater.run_update_check` runs entirely in that thread and
+  reports progress ("checking for update" → "downloading update" →
+  "installing update" → "relaunch to update") through a callback. Any
+  callback that touches a widget must go through `App.call_from_thread` —
+  see `_set_update_status`/`_show_update_status` in `app.py`. Every network,
+  zip, and subprocess call in `updater.py` catches its own failure and
+  reports `None` (nothing shown) rather than raising; this is a background
+  nicety and must never crash or block the app. The overlay step only
+  writes files present in the downloaded release — it never deletes, which
+  is what keeps `grid.dat` safe without an explicit exclusion list (it's
+  gitignored, so it's never in the release zip to begin with). New code on
+  disk only takes effect on the *next* launch, since the running process
+  already has the old modules loaded in memory — there is no in-process
+  restart.
 
 ## Testing
 
@@ -108,3 +124,11 @@ python -m lattice            # or double-click Lattice.pyw
 
 Every update (commit) must be pushed to `master` right after — no local-only
 commits left behind.
+
+## Release
+
+Whenever `lattice/__init__.py`'s `__version__` is bumped and pushed, run
+`./release.ps1` (local-only, gitignored, uses the already-authenticated `gh`
+CLI) to tag and publish a matching GitHub release. The in-app updater only
+ever sees tagged releases — a version bump without one is invisible to
+users.

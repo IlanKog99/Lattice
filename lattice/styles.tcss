@@ -30,6 +30,13 @@ Screen {
     content-align: left middle;
     display: none;
 }
+#update {
+    width: auto;
+    height: 100%;
+    margin-left: 2;
+    content-align: left middle;
+    display: none;
+}
 
 /* ---- grid ---- */
 GridView {
