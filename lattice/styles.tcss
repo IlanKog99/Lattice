@@ -37,6 +37,14 @@ Screen {
     content-align: left middle;
     display: none;
 }
+/* a quiet twinkle filling the rest of the top bar — one or two points of
+   light at a time, never a wash (the ambient background pulse tried this
+   before and got pulled for being too much) */
+#sparks {
+    width: 1fr;
+    height: 100%;
+    content-align: right middle;
+}
 
 /* ---- grid ---- */
 GridView {

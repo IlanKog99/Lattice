@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from pathlib import Path
 
 import pyperclip
@@ -97,6 +98,10 @@ class LatticeApp(App):
         self._save_frame = 0
         self._save_anim = None
         self._save_hide = None
+        self._update_frame = 0
+        self._update_anim = None
+        self._update_text = ""
+        self._spark_anim = None
 
     # --- layout --------------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -107,6 +112,7 @@ class LatticeApp(App):
             )
             yield Static("", id="saving")
             yield Static("", id="update")
+            yield Static("", id="sparks")
         yield GridView(id="grid")
         yield Static(HINTS, id="status")
         with Vertical(id="findbar"):
@@ -134,6 +140,7 @@ class LatticeApp(App):
             self.set_status("Empty store — use /add to begin, or seed from a file")
         self.set_interval(1.0, self._poll_clipboard)
         self.run_worker(self._check_for_update, thread=True)
+        self._spark_anim = self.set_interval(0.5, self._spark)
 
     # --- background self-update -----------------------------------------
     def _check_for_update(self) -> None:
@@ -146,10 +153,41 @@ class LatticeApp(App):
         indicator = self.query_one("#update", Static)
         if status is None:
             indicator.display = False
+            if self._update_anim is not None:
+                self._update_anim.stop()
+                self._update_anim = None
             return
         indicator.display = True
-        icon = "✓" if status == "relaunch to update" else "◐"
-        indicator.update(f"[#2a7d8c]{icon}[/] [#6b7787]{status}[/]")
+        if status == "relaunch to update":
+            if self._update_anim is not None:
+                self._update_anim.stop()
+                self._update_anim = None
+            indicator.update(f"[#2a7d8c]✓[/] [#6b7787]{status}[/]")
+            return
+        self._update_text = status
+        if self._update_anim is None:
+            self._update_anim = self.set_interval(0.12, self._update_spin)
+        self._update_spin()
+
+    def _update_spin(self) -> None:
+        frame = self._save_frames[self._update_frame % len(self._save_frames)]
+        self._update_frame += 1
+        try:
+            self.query_one("#update", Static).update(f"[#2a7d8c]{frame}[/] [#6b7787]{self._update_text}[/]")
+        except Exception:  # noqa: BLE001 - widget gone during shutdown
+            pass
+
+    # --- top-bar sparks (a quiet twinkle, not a wash) --------------------
+    def _spark(self) -> None:
+        width = 20
+        bright = random.sample(range(width), k=random.choice((1, 1, 2)))
+        chars = "".join(
+            "[#ff6a3d]·[/]" if i in bright else "[#1a212e]·[/]" for i in range(width)
+        )
+        try:
+            self.query_one("#sparks", Static).update(chars)
+        except Exception:  # noqa: BLE001 - widget gone during shutdown
+            pass
 
     # --- clipboard match -----------------------------------------------
     def _poll_clipboard(self) -> None:
