@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import random
 from pathlib import Path
 
 import pyperclip
@@ -59,6 +58,15 @@ DEFAULT_REVEAL_MINUTES = 1
 MAX_REVEAL_MINUTES = 600
 UNDO_DEPTH = 100
 
+# cli-spinners "dots2" and "bouncingBall" frame sets (80ms/frame in the
+# original spec) — saving uses dots2, the background updater uses the ball.
+DOTS_FRAMES = "⣾⣽⣻⢿⡿⣟⣯⣷"
+BALL_FRAMES = (
+    "( ●    )", "(  ●   )", "(   ●  )", "(    ● )", "(     ●)",
+    "(    ● )", "(   ●  )", "(  ●   )", "( ●    )", "(●     )",
+)
+SPINNER_INTERVAL = 0.08
+
 _COMMANDS = {
     "add": AddScreen,
     "remove": RemoveScreen,
@@ -94,26 +102,22 @@ class LatticeApp(App):
         self.revealed = False
         self._reveal_timer = None
         self._undo: list = []
-        self._save_frames = "◐◓◑◒"
         self._save_frame = 0
         self._save_anim = None
         self._save_hide = None
         self._update_frame = 0
         self._update_anim = None
         self._update_text = ""
-        self._spark_anim = None
 
     # --- layout --------------------------------------------------------
     def compose(self) -> ComposeResult:
-        with Vertical(id="topbar"):
-            with Horizontal(id="topbar-row"):
-                yield Static(
-                    f"[b]{APP_NAME}[/b]\n[dim]a quiet little grid keeper[/dim]",
-                    id="appname",
-                )
-                yield Static("", id="saving")
-                yield Static("", id="update")
-            yield Static("", id="sparks")
+        with Horizontal(id="topbar"):
+            yield Static(
+                f"[b]{APP_NAME}[/b]\n[dim]a quiet little grid keeper[/dim]",
+                id="appname",
+            )
+            yield Static("", id="saving")
+            yield Static("", id="update")
         yield GridView(id="grid")
         yield Static(HINTS, id="status")
         with Vertical(id="findbar"):
@@ -141,7 +145,6 @@ class LatticeApp(App):
             self.set_status("Empty store — use /add to begin, or seed from a file")
         self.set_interval(1.0, self._poll_clipboard)
         self.run_worker(self._check_for_update, thread=True)
-        self._spark_anim = self.set_interval(0.5, self._spark)
 
     # --- background self-update -----------------------------------------
     def _check_for_update(self) -> None:
@@ -167,30 +170,14 @@ class LatticeApp(App):
             return
         self._update_text = status
         if self._update_anim is None:
-            self._update_anim = self.set_interval(0.12, self._update_spin)
+            self._update_anim = self.set_interval(SPINNER_INTERVAL, self._update_spin)
         self._update_spin()
 
     def _update_spin(self) -> None:
-        frame = self._save_frames[self._update_frame % len(self._save_frames)]
+        frame = BALL_FRAMES[self._update_frame % len(BALL_FRAMES)]
         self._update_frame += 1
         try:
             self.query_one("#update", Static).update(f"[#2a7d8c]{frame}[/] [#6b7787]{self._update_text}[/]")
-        except Exception:  # noqa: BLE001 - widget gone during shutdown
-            pass
-
-    # --- top-bar sparks (a quiet twinkle across the whole bar, standing in
-    # for the old static border-bottom line — not a wash, just a couple of
-    # faint points of light passing through at any given moment) ----------
-    SPARK_WIDTH = 300  # wider than any real terminal; Static clips the rest
-    SPARK_DENSITY = 2  # bright points visible at once, out of SPARK_WIDTH
-
-    def _spark(self) -> None:
-        bright = set(random.sample(range(self.SPARK_WIDTH), k=self.SPARK_DENSITY))
-        chars = "".join(
-            "[#ff6a3d]─[/]" if i in bright else "[#1a212e]─[/]" for i in range(self.SPARK_WIDTH)
-        )
-        try:
-            self.query_one("#sparks", Static).update(chars)
         except Exception:  # noqa: BLE001 - widget gone during shutdown
             pass
 
@@ -219,7 +206,7 @@ class LatticeApp(App):
         indicator = self.query_one("#saving", Static)
         indicator.display = True
         if self._save_anim is None:
-            self._save_anim = self.set_interval(0.12, self._spin)
+            self._save_anim = self.set_interval(SPINNER_INTERVAL, self._spin)
         self._spin()
         if self._save_hide is not None:
             self._save_hide.stop()
@@ -227,7 +214,7 @@ class LatticeApp(App):
         self._save_hide = self.set_timer(1.0, self._hide_saving)
 
     def _spin(self) -> None:
-        frame = self._save_frames[self._save_frame % len(self._save_frames)]
+        frame = DOTS_FRAMES[self._save_frame % len(DOTS_FRAMES)]
         self._save_frame += 1
         try:
             self.query_one("#saving", Static).update(f"[#3fb950]{frame}[/] [#6b7787]saving[/]")
