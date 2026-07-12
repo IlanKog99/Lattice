@@ -85,6 +85,8 @@ also click an entry.
 | `/visible` | Reveal **all** values for **1 minute**, then they re-mask automatically. (To peek a single cell instead, hold `V`.) |
 | `/visible N` | Reveal for `N` minutes instead (e.g. `/visible 5`). |
 | `/hide` | Re-mask values immediately, before the timer runs out. |
+| `/update` | Check for an update right now (same check that runs at launch). If one's already downloaded and waiting, this restarts Lattice instead to pick it up. |
+| `/reload` | Restart Lattice in place — same window, fresh process. |
 
 ### Formula cells
 

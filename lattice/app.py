@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
 
 import pyperclip
@@ -83,6 +85,8 @@ COMMAND_INFO = [
     ("undo", "Undo the last change"),
     ("visible", "Reveal values (e.g. /visible 5)"),
     ("hide", "Mask values now"),
+    ("update", "Check for an update now"),
+    ("reload", "Restart Lattice"),
     ("quit", "Exit Lattice"),
 ]
 _KNOWN = {name for name, _ in COMMAND_INFO} | {"exit", "q"}
@@ -108,6 +112,8 @@ class LatticeApp(App):
         self._update_frame = 0
         self._update_anim = None
         self._update_text = ""
+        self._update_ready = False
+        self.restart_requested = False
 
     # --- layout --------------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -150,6 +156,21 @@ class LatticeApp(App):
     def _check_for_update(self) -> None:
         updater.run_update_check(self._set_update_status)
 
+    def _check_for_update_manual(self) -> None:
+        updater.run_update_check(self._set_update_status, announce_current=True)
+
+    def cmd_update(self) -> None:
+        """/update — manual check; restarts instead if one's already staged."""
+        if self._update_ready:
+            self.request_restart()
+            return
+        self.run_worker(self._check_for_update_manual, thread=True)
+
+    def request_restart(self) -> None:
+        """/reload, and /update once an update is staged: relaunch in place."""
+        self.restart_requested = True
+        self.exit()
+
     def _set_update_status(self, status: str | None) -> None:
         self.call_from_thread(self._show_update_status, status)
 
@@ -162,11 +183,14 @@ class LatticeApp(App):
                 self._update_anim = None
             return
         indicator.display = True
-        if status == "relaunch to update":
+        if status in ("relaunch to update", "up to date"):
             if self._update_anim is not None:
                 self._update_anim.stop()
                 self._update_anim = None
+            self._update_ready = status == "relaunch to update"
             indicator.update(f"[#2a7d8c]✓[/] [#6b7787]{status}[/]")
+            if status == "up to date":
+                self.set_timer(2.0, lambda: setattr(indicator, "display", False))
             return
         self._update_text = status
         if self._update_anim is None:
@@ -421,6 +445,12 @@ class LatticeApp(App):
         if name == "rename":
             self.enter_rename()
             return
+        if name == "update":
+            self.cmd_update()
+            return
+        if name == "reload":
+            self.request_restart()
+            return
         screen = _COMMANDS.get(name)
         if screen is None:
             self.set_status(f"Unknown command: /{name}")
@@ -460,7 +490,13 @@ class LatticeApp(App):
 
 
 def main() -> None:
-    LatticeApp().run()
+    app = LatticeApp()
+    app.run()
+    if app.restart_requested:
+        # Textual has already restored the terminal by the time run()
+        # returns, so it's safe to replace this process image in place --
+        # same window, fresh code, no new console to manage.
+        os.execv(sys.executable, [sys.executable, "-m", "lattice"])
 
 
 if __name__ == "__main__":

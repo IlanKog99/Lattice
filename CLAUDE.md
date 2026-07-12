@@ -104,8 +104,15 @@ A cell holds either a plain string, or a **formula spec** — a
   is what keeps `grid.dat` safe without an explicit exclusion list (it's
   gitignored, so it's never in the release zip to begin with). New code on
   disk only takes effect on the *next* launch, since the running process
-  already has the old modules loaded in memory — there is no in-process
-  restart.
+  already has the old modules loaded in memory. `/update` runs the same
+  check on demand (`announce_current=True` this time, so it reports "up to
+  date" instead of staying silent) and restarts instead of re-checking if
+  `_update_ready` is already set from a prior background run. `/reload`
+  always restarts. Both go through `App.request_restart()` (sets
+  `restart_requested`, calls `self.exit()`); `lattice.app.main()` checks
+  that flag *after* `App.run()` returns and, if set, replaces the process
+  with `os.execv(sys.executable, [sys.executable, "-m", "lattice"])` — same
+  window, fresh interpreter, picks up whatever's now on disk.
 
 ## Testing
 

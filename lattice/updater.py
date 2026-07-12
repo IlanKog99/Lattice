@@ -132,18 +132,22 @@ def pip_install() -> bool:
         return False
 
 
-def run_update_check(on_status: Callable[[str | None], None]) -> None:
+def run_update_check(
+    on_status: Callable[[str | None], None], *, announce_current: bool = False
+) -> None:
     """Check for and apply an update, reporting progress through `on_status`.
 
     Statuses: "checking for update", "downloading update", "installing
-    update", "relaunch to update". Calls `on_status(None)` (nothing to show)
-    if already current or if any step fails — this never surfaces as an
-    error to the user.
+    update", "relaunch to update". If nothing changed (already current, or a
+    step failed), calls `on_status(None)` — silent, for the automatic
+    startup check — unless `announce_current` is set, in which case it
+    reports "up to date" instead (used by the manual /update command, which
+    should always give feedback).
     """
     _report(on_status, "checking for update")
     release = fetch_latest_release()
     if release is None or not is_newer(release["tag_name"], __version__):
-        on_status(None)
+        on_status("up to date" if announce_current else None)
         return
 
     _report(on_status, "downloading update")

@@ -5,5 +5,5 @@ machine-encoded (not human readable) and is only ever expanded into plain
 text inside memory while the app is running.
 """
 
-__version__ = "1.1.4"
+__version__ = "1.2.0"
 APP_NAME = "Lattice"
