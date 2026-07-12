@@ -367,3 +367,26 @@ FormulaPromptScreen {
 .formula-prompt .modalinput:focus {
     border: tall #2a7d8c;
 }
+
+/* what's new — centered, ember accent like the everyday modals, a scroll
+   area for longer release notes so the popup never outgrows the screen */
+WhatsNewScreen {
+    align: center middle;
+    background: #0a0d13 55%;
+}
+.whats-new {
+    width: 70;
+    max-height: 80%;
+    padding: 1 2;
+    background: #11161f;
+    border: heavy #ff6a3d;
+}
+.whats-new-body {
+    height: auto;
+    max-height: 20;
+    margin-bottom: 1;
+    scrollbar-size-vertical: 1;
+}
+.whats-new-text {
+    color: #c4ccd6;
+}

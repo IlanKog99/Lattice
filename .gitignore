@@ -20,3 +20,6 @@ desktop.ini
 
 # Local-only release publisher — personal machine, never shipped
 release.ps1
+
+# Marks the last version the What's New popup has been shown for
+.whatsnew_seen

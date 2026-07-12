@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, OptionList, Static
 from textual.widgets.option_list import Option
@@ -543,3 +543,27 @@ class FormulaPromptScreen(ModalScreen):
 
     def _cancel(self) -> None:
         self.dismiss(None)
+
+
+class WhatsNewScreen(ModalScreen):
+    """Shows the current version's release notes. Enter or Esc closes."""
+
+    def __init__(self, version: str, notes: str) -> None:
+        super().__init__()
+        self._version = version
+        self._notes = notes
+
+    def compose(self):
+        with Vertical(classes="modal whats-new"):
+            yield Static(f"✦  What's new in v{self._version}", classes="modal-title")
+            with VerticalScroll(classes="whats-new-body"):
+                yield Static(self._notes, classes="whats-new-text")
+            yield Static(_legend([("enter / esc", "close")]), classes="modal-keys")
+
+    def on_mount(self) -> None:
+        self.focus()
+
+    def on_key(self, event) -> None:
+        if event.key in ("enter", "escape"):
+            event.stop()
+            self.dismiss()

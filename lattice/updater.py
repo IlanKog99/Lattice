@@ -17,6 +17,7 @@ without needing an explicit exclusion list.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -74,6 +75,30 @@ def fetch_latest_release() -> dict | None:
         return {"tag_name": data["tag_name"], "zipball_url": data["zipball_url"]}
     except (urllib.error.URLError, TimeoutError, KeyError, ValueError, OSError):
         return None
+
+
+def fetch_release_notes(version: str) -> str | None:
+    """The release-notes body for the tag matching `version`, or None."""
+    url = f"https://api.github.com/repos/{OWNER}/{REPO}/releases/tags/v{version}"
+    try:
+        req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        return data.get("body")
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        return None
+
+
+def format_release_notes(raw: str | None) -> str:
+    """Light cleanup of GitHub's auto-generated release notes for display."""
+    text = raw or ""
+    text = re.sub(r"^#+\s*What's Changed\s*$", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\*\*Full Changelog\*\*.*$", "", text, flags=re.MULTILINE | re.DOTALL)
+    text = re.sub(r"\s+in https://\S+/pull/\d+\s*$", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\s+by @\S+\b", "", text)
+    text = re.sub(r"^\*\s+", "• ", text, flags=re.MULTILINE)
+    lines = [ln.rstrip() for ln in text.splitlines() if ln.strip()]
+    return "\n".join(lines) if lines else "No notable changes."
 
 
 def download_zip(url: str, dest_dir: Path) -> Path | None:

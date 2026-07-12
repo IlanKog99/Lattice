@@ -13,9 +13,11 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
-from . import APP_NAME, store, updater
-from .screens import AddScreen, ConfirmScreen, MassScreen, RemoveScreen
+from . import APP_NAME, __version__, store, updater
+from .screens import AddScreen, ConfirmScreen, MassScreen, RemoveScreen, WhatsNewScreen
 from .widgets import CommandInput, FindInput, GridView
+
+WHATSNEW_MARKER = updater.PROJECT_ROOT / ".whatsnew_seen"
 
 def _k(key: str, label: str) -> str:
     return f"[#ff6a3d b]{key}[/] [#aeb8c4]{label}[/]"
@@ -87,6 +89,7 @@ COMMAND_INFO = [
     ("hide", "Mask values now"),
     ("update", "Check for an update now"),
     ("reload", "Restart Lattice"),
+    ("new", "Show what's new in this version"),
     ("quit", "Exit Lattice"),
 ]
 _KNOWN = {name for name, _ in COMMAND_INFO} | {"exit", "q"}
@@ -151,6 +154,29 @@ class LatticeApp(App):
             self.set_status("Empty store — use /add to begin, or seed from a file")
         self.set_interval(1.0, self._poll_clipboard)
         self.run_worker(self._check_for_update, thread=True)
+        if not self._whatsnew_seen():
+            self.run_worker(self._fetch_and_show_whats_new, thread=True)
+
+    # --- what's new -------------------------------------------------------
+    def _whatsnew_seen(self) -> bool:
+        try:
+            return WHATSNEW_MARKER.read_text(encoding="utf-8").strip() == __version__
+        except OSError:
+            return False
+
+    def cmd_new(self) -> None:
+        self.run_worker(self._fetch_and_show_whats_new, thread=True)
+
+    def _fetch_and_show_whats_new(self) -> None:
+        notes = updater.fetch_release_notes(__version__)
+        self.call_from_thread(self._show_whats_new, notes)
+
+    def _show_whats_new(self, notes: str | None) -> None:
+        self.push_screen(WhatsNewScreen(__version__, updater.format_release_notes(notes)))
+        try:
+            WHATSNEW_MARKER.write_text(__version__, encoding="utf-8")
+        except OSError:
+            pass
 
     # --- background self-update -----------------------------------------
     def _check_for_update(self) -> None:
@@ -450,6 +476,9 @@ class LatticeApp(App):
             return
         if name == "reload":
             self.request_restart()
+            return
+        if name == "new":
+            self.cmd_new()
             return
         screen = _COMMANDS.get(name)
         if screen is None:

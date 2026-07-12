@@ -87,6 +87,7 @@ also click an entry.
 | `/hide` | Re-mask values immediately, before the timer runs out. |
 | `/update` | Check for an update right now (same check that runs at launch). If one's already downloaded and waiting, this restarts Lattice instead to pick it up. |
 | `/reload` | Restart Lattice in place — same window, fresh process. |
+| `/new` | Show what's new in the version you're running. Pops up automatically, once, the first time you launch a version you haven't seen yet. `Enter` or `Esc` closes it. |
 
 ### Formula cells
 
