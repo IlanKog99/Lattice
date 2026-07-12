@@ -23,3 +23,10 @@ release.ps1
 
 # Marks the last version the What's New popup has been shown for
 .whatsnew_seen
+
+# Local AI-tooling state — plugin configs, hook caches, agent scratch dirs.
+# Never contains project code, just this machine's tool runtime state.
+.claude/
+.impeccable/
+.superpowers/
+docs/superpowers/
