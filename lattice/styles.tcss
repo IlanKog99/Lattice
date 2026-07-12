@@ -90,8 +90,11 @@ GridView.renamemode {
     text-style: bold;
 }
 
-/* formula cells — a thin teal rule flags "copying this asks for a number" */
-.cell.formula {
+/* formula and totp cells — a thin teal rule flags "copying this does
+   something other than paste a fixed string"; the ƒ / ⏱ marker in front
+   of the value is what tells the two apart */
+.cell.formula,
+.cell.totp {
     border-left: solid #2a7d8c;
 }
 

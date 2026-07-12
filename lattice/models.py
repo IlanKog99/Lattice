@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import totp
+
 
 @dataclass
 class Column:
@@ -24,9 +26,18 @@ class Row:
     hidden: bool = False
 
 
+def is_totp(value: Any) -> bool:
+    """True if `value` is a TOTP secret spec ({kind: "totp", secret})."""
+    return isinstance(value, dict) and value.get("kind") == "totp"
+
+
 def is_formula(value: Any) -> bool:
-    """True if `value` is a formula spec ({prefix, suffix, formula}) rather than a plain string."""
-    return isinstance(value, dict)
+    """True if `value` is a formula spec — any dict that isn't a TOTP spec.
+
+    Existing formula specs have no "kind" key (they predate TOTP cells), so
+    this stays the fallback rather than requiring a "kind": "formula" tag.
+    """
+    return isinstance(value, dict) and not is_totp(value)
 
 
 def formula_preview(spec: dict) -> str:
@@ -34,8 +45,19 @@ def formula_preview(spec: dict) -> str:
 
 
 def cell_text(value: Any) -> str:
-    """Render any cell value (plain string or formula spec) as displayable text."""
-    return formula_preview(value) if is_formula(value) else value
+    """Render any cell value (string, formula spec, or TOTP spec) as text.
+
+    A TOTP cell's raw secret is never rendered anywhere, even revealed --
+    only the current rotating code, same as what copying it produces.
+    """
+    if is_totp(value):
+        try:
+            return totp.generate(value.get("secret", ""))
+        except Exception:  # noqa: BLE001 - corrupt/invalid stored secret
+            return "?" * totp.DIGITS
+    if is_formula(value):
+        return formula_preview(value)
+    return value
 
 
 @dataclass

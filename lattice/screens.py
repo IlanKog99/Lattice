@@ -18,7 +18,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, OptionList, Static
 from textual.widgets.option_list import Option
 
-from . import formula
+from . import formula, totp
 from .models import cell_text
 from .widgets import BoxInput
 
@@ -30,7 +30,6 @@ def _legend(pairs: list[tuple[str, str]]) -> str:
 
 CHOICE_KEYS = _legend([("↑↓ / w s", "move"), ("enter", "select"), ("b", "back"), ("esc", "cancel")])
 TEXT_KEYS = _legend([("enter", "save"), ("esc", "cancel")])
-FORMAT_TEXT_KEYS = _legend([("enter", "save"), ("ctrl+f", "formula"), ("esc", "cancel")])
 CONFIRM_KEYS = _legend([("←→ / a d", "switch"), ("enter", "select"), ("b", "back"), ("esc", "cancel")])
 
 
@@ -141,16 +140,24 @@ class StepModal(ModalScreen):
         placeholder: str = "",
         initial: str = "",
         on_format: Callable[[], None] | None = None,
+        on_totp: Callable[[], None] | None = None,
     ) -> None:
         def deferred(value: str) -> None:
             self.call_after_refresh(on_submit, value)
 
         field = BoxInput(
             initial, deferred, self.cancel,
-            placeholder=placeholder, classes="modalinput", on_format=on_format,
+            placeholder=placeholder, classes="modalinput",
+            on_format=on_format, on_totp=on_totp,
         )
         self._swap(Static(prompt, classes="prompt"), field, focus=field)
-        self.set_keys(TEXT_KEYS if on_format is None else FORMAT_TEXT_KEYS)
+        keys = [("enter", "save")]
+        if on_format is not None:
+            keys.append(("ctrl+f", "formula"))
+        if on_totp is not None:
+            keys.append(("ctrl+t", "totp"))
+        keys.append(("esc", "cancel"))
+        self.set_keys(_legend(keys))
 
     # --- events --------------------------------------------------------
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
@@ -236,6 +243,7 @@ class AddScreen(StepModal):
             self._value,
             placeholder="leave blank for empty",
             on_format=self._enter_format,
+            on_totp=self._enter_totp,
         )
 
     def _value(self, value) -> None:
@@ -248,6 +256,15 @@ class AddScreen(StepModal):
 
     def _format_done(self, spec: dict | None) -> None:
         if spec is None:  # cancelled the formula wizard
+            self._collect()  # re-show the plain text step for this field
+            return
+        self._value(spec)
+
+    def _enter_totp(self) -> None:
+        self.app.push_screen(TotpScreen(), self._totp_done)
+
+    def _totp_done(self, spec: dict | None) -> None:
+        if spec is None:  # cancelled the TOTP wizard
             self._collect()  # re-show the plain text step for this field
             return
         self._value(spec)
@@ -495,6 +512,37 @@ class FormulaScreen(StepModal):
             self._ask_formula()  # re-ask; no history push
             return
         self.dismiss({"prefix": self.prefix, "suffix": self.suffix, "formula": value})
+
+
+class TotpScreen(StepModal):
+    """Ctrl+T sub-flow: enter a base32 authenticator secret for a cell."""
+
+    title_text = "TOTP  —  authenticator secret"
+
+    def __init__(self, prefill: dict | None = None) -> None:
+        super().__init__()
+        self._prefill = prefill or {}
+
+    def start(self) -> None:
+        self.step(self._ask_secret)
+
+    def cancel(self) -> None:
+        self.dismiss(None)
+
+    def _ask_secret(self) -> None:
+        self.ask_text(
+            "Authenticator secret (base32 — spaces OK):",
+            self._secret_entered,
+            initial=self._prefill.get("secret", ""),
+            placeholder="e.g. JBSW Y3DP EHPK 3PXP",
+        )
+
+    def _secret_entered(self, value: str) -> None:
+        if not totp.validate_secret(value):
+            self.app.set_status("Bad secret — must be base32 (A-Z, 2-7)")
+            self._ask_secret()  # re-ask; no history push
+            return
+        self.dismiss({"kind": "totp", "secret": totp.normalize_secret(value)})
 
 
 class FormulaPromptScreen(ModalScreen):

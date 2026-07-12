@@ -7,13 +7,15 @@ those values mean.
 
 from __future__ import annotations
 
+import time
 from typing import Callable
 
 import pyperclip
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Input, Static
 
-from .models import cell_text, is_formula
+from . import totp
+from .models import cell_text, is_formula, is_totp
 
 # Keys that move the cursor, mapped to (row delta, col delta).
 _MOVES = {
@@ -40,11 +42,13 @@ class BoxInput(Input):
         id: str | None = None,
         classes: str | None = None,
         on_format: Callable[[], None] | None = None,
+        on_totp: Callable[[], None] | None = None,
     ) -> None:
         super().__init__(value=value, placeholder=placeholder, id=id, classes=classes)
         self._on_submit = on_submit
         self._on_cancel = on_cancel
         self._on_format = on_format
+        self._on_totp = on_totp
 
     def on_key(self, event) -> None:
         if event.key == "enter":
@@ -56,6 +60,9 @@ class BoxInput(Input):
         elif event.key == "ctrl+f" and self._on_format is not None:
             event.stop()
             self._on_format()
+        elif event.key == "ctrl+t" and self._on_totp is not None:
+            event.stop()
+            self._on_totp()
 
 
 class FindInput(Input):
@@ -126,8 +133,11 @@ class Cell(Container):
         if header:
             classes += " hcell"   # top header row
         self._is_formula = is_formula(value)
+        self._is_totp = is_totp(value)
         if self._is_formula:
             classes += " formula"
+        if self._is_totp:
+            classes += " totp"
         super().__init__(classes=classes)
         self._value = value
         self._is_label = is_label
@@ -139,6 +149,22 @@ class Cell(Container):
     def compose(self):
         yield Static(self._display(), classes="celltext")
 
+    def on_mount(self) -> None:
+        if self._is_totp:
+            self.set_interval(1.0, self._totp_tick)
+
+    def _totp_tick(self) -> None:
+        try:
+            self.query_one(".celltext", Static).update(self._display())
+        except Exception:  # noqa: BLE001 - widget gone during shutdown
+            pass
+
+    def _totp_marker(self) -> str:
+        """Seconds left until this code rotates, ticked once a second --
+        signals "time-based, about to change" more plainly than a glyph."""
+        remaining = totp.PERIOD - (int(time.time()) % totp.PERIOD)
+        return f"{remaining:2d}s"
+
     def _display(self) -> str:
         # Labels and headers are identifiers, not secret, so they always show.
         # Value cells stay masked until revealed with /visible.
@@ -148,7 +174,11 @@ class Cell(Container):
             text = cell_text(self._value)
         else:
             text = self.MASK
-        return f"ƒ {text}" if self._is_formula else text
+        if self._is_formula:
+            return f"ƒ {text}"
+        if self._is_totp:
+            return f"{self._totp_marker()} {text}"
+        return text
 
     @property
     def value(self):
@@ -164,7 +194,9 @@ class Cell(Container):
     def set_value(self, value) -> None:
         self._value = value
         self._is_formula = is_formula(value)
+        self._is_totp = is_totp(value)
         self.set_class(self._is_formula, "formula")
+        self.set_class(self._is_totp, "totp")
         self.query_one(".celltext", Static).update(self._display())
 
     def select(self, on: bool) -> None:
@@ -236,7 +268,9 @@ class GridView(VerticalScroll):
             longest = len(self.grid.columns[ci].name)
             for ri in self.vrows:
                 value = self.grid.rows[ri].cells[ci]
-                text_len = len(cell_text(value)) + (2 if is_formula(value) else 0)
+                # marker + space prefix: "ƒ " (2 chars) or "29s " (4 chars)
+                marker_width = 2 if is_formula(value) else (4 if is_totp(value) else 0)
+                text_len = len(cell_text(value)) + marker_width
                 longest = max(longest, text_len)
             width = max(12, min(longest + 2, 42))
             if ci == 0:
@@ -366,6 +400,14 @@ class GridView(VerticalScroll):
 
             self.app.push_screen(FormulaPromptScreen(cell.value), lambda text: self._finish_copy(cell, text))
             return
+        if is_totp(cell.value):
+            try:
+                code = totp.generate(cell.value["secret"])
+            except Exception:  # noqa: BLE001 - corrupt/invalid stored secret
+                self.app.set_status("Invalid TOTP secret")
+                return
+            self._finish_copy(cell, code)
+            return
         self._finish_copy(cell, cell.value)
 
     def _finish_copy(self, cell: Cell, text) -> None:
@@ -406,6 +448,26 @@ class GridView(VerticalScroll):
                 self.app.set_status("Saved")
 
             self.app.push_screen(FormulaScreen(prefill=cell.value), done)
+            return
+
+        if is_totp(cell.value):
+            from .screens import TotpScreen
+
+            self.editing = True
+
+            def totp_done(spec) -> None:
+                self.editing = False
+                self.focus()
+                if spec is None:
+                    self.app.set_status("Edit cancelled")
+                    return
+                self.app.push_undo()
+                self.grid.set_cell(ri, ci, spec)
+                self.app.persist()
+                self.rebuild()
+                self.app.set_status("Saved")
+
+            self.app.push_screen(TotpScreen(prefill=cell.value), totp_done)
             return
 
         self.editing = True
