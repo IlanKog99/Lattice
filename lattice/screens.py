@@ -198,6 +198,10 @@ class AddScreen(StepModal):
 
     def _kind_chosen(self, kind: str) -> None:
         self.kind = kind
+        if kind == "row" and not self.app.grid.columns:
+            self.app.set_status("Add a column first — a row needs one to hold it")
+            self.cancel()
+            return
         self.step(self._enter_name)
 
     def _enter_name(self) -> None:
