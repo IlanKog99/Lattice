@@ -47,6 +47,7 @@ Do not add unlock prompts, key derivation, or claims of real security.
 | `lattice/codec.py` | `pack()` / `unpack()`: utf-8 → zlib → rolling XOR → base85. The reversible mangling. Changing `_MASK` or `_TAG` invalidates existing stores. |
 | `lattice/formula.py` | Safe `+ - * /` / `INPT` evaluator for formula cells, parsed with `ast` (never `eval()`). |
 | `lattice/updater.py` | Background self-updater: checks GitHub Releases against `__version__`, downloads and overlays a newer release, best-effort `pip install`. See Conventions below. |
+| `lattice/code_engine.py` | Time-stepped code generation (RFC 6238) for code cells: the cell stores a base32 seed, the 6-digit code is derived from seed + clock on every render and copy and is never stored. The stored cell spec keeps its historical `kind` tag, so renaming this module never touches existing stores. |
 | `lattice/seed.py` | One-shot importer from a pipe-delimited plain-text table. Reads the source at runtime; never embeds it. |
 
 Data model: column 0 is the label column; columns 1+ are value columns. Every
@@ -97,12 +98,16 @@ A cell holds either a plain string, or a **formula spec** — a
   "installing update" → "relaunch to update") through a callback. Any
   callback that touches a widget must go through `App.call_from_thread` —
   see `_set_update_status`/`_show_update_status` in `app.py`. Every network,
-  zip, and subprocess call in `updater.py` catches its own failure and
-  reports `None` (nothing shown) rather than raising; this is a background
-  nicety and must never crash or block the app. The overlay step only
+  zip, filesystem, and subprocess call in `updater.py` catches its own
+  failure and reports `None` (nothing shown) rather than raising; this is a
+  background nicety and must never crash or block the app — an exception
+  escaping the worker tears the whole app down with a traceback, it is not
+  merely logged. The overlay step only
   writes files present in the downloaded release — it never deletes, which
   is what keeps `grid.dat` safe without an explicit exclusion list (it's
-  gitignored, so it's never in the release zip to begin with). New code on
+  gitignored, so it's never in the release zip to begin with). It copies
+  added files before overwriting existing ones, so a copy that dies partway
+  still leaves an importable tree. New code on
   disk only takes effect on the *next* launch, since the running process
   already has the old modules loaded in memory. `/update` runs the same
   check on demand (`announce_current=True` this time, so it reports "up to

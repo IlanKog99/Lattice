@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import totp
+from . import code_engine
 
 
 @dataclass
@@ -52,9 +52,9 @@ def cell_text(value: Any) -> str:
     """
     if is_totp(value):
         try:
-            return totp.generate(value.get("secret", ""))
+            return code_engine.generate(value.get("secret", ""))
         except Exception:  # noqa: BLE001 - corrupt/invalid stored secret
-            return "?" * totp.DIGITS
+            return "?" * code_engine.DIGITS
     if is_formula(value):
         return formula_preview(value)
     return value

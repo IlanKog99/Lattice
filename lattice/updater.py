@@ -134,11 +134,14 @@ def overlay(src_dir: Path, dest_dir: Path) -> None:
     ponytail: overlay-only, so a file removed upstream lingers locally
     forever. Fine for now; revisit with a manifest-based prune if it bites.
     """
-    for src_path in src_dir.rglob("*"):
-        if src_path.is_dir():
-            continue
-        rel = src_path.relative_to(src_dir)
-        dest_path = dest_dir / rel
+    files = [p for p in src_dir.rglob("*") if p.is_file()]
+    # Added files first, overwrites second. If the copy dies partway (a locked
+    # file, a full disk), what's left on disk still imports: a half-overlay
+    # that only added a module nothing references yet is harmless, while one
+    # that overwrote an import of a module not written yet is fatal.
+    files.sort(key=lambda p: (dest_dir / p.relative_to(src_dir)).exists())
+    for src_path in files:
+        dest_path = dest_dir / src_path.relative_to(src_dir)
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_path, dest_path)
 
@@ -189,7 +192,13 @@ def run_update_check(
             on_status(None)
             return
 
-        overlay(extracted, PROJECT_ROOT)
+        try:
+            overlay(extracted, PROJECT_ROOT)
+        except OSError:
+            # Same best-effort contract as every other step here: say nothing
+            # and leave the session alone rather than raising into the worker.
+            on_status(None)
+            return
         pip_install()
 
     _report(on_status, "relaunch to update")

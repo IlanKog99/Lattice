@@ -1,8 +1,8 @@
-"""TOTP (RFC 6238) code generation for totp-type cells.
+"""Time-stepped code generation for code-type cells (RFC 6238).
 
-Stdlib only. A totp cell stores a base32 secret; the 6-digit code is
-computed fresh from that secret and the current time whenever it's
-copied -- the code itself is never stored, only the secret.
+Stdlib only. A code cell stores a base32 seed; the 6-digit code is
+computed fresh from that seed and the current time whenever it's
+copied -- the code itself is never stored, only the seed.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ def demo() -> None:
     assert generate(secret, when=59) == "287082"
     assert validate_secret("JBSWY3DPEHPK3PXP")
     assert not validate_secret("not base32!!!")
-    print("totp: ok")
+    print("code_engine: ok")
 
 
 if __name__ == "__main__":

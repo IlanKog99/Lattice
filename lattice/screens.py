@@ -18,7 +18,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, OptionList, Static
 from textual.widgets.option_list import Option
 
-from . import formula, totp
+from . import code_engine, formula
 from .models import cell_text
 from .widgets import BoxInput
 
@@ -538,11 +538,11 @@ class TotpScreen(StepModal):
         )
 
     def _secret_entered(self, value: str) -> None:
-        if not totp.validate_secret(value):
+        if not code_engine.validate_secret(value):
             self.app.set_status("Bad secret — must be base32 (A-Z, 2-7)")
             self._ask_secret()  # re-ask; no history push
             return
-        self.dismiss({"kind": "totp", "secret": totp.normalize_secret(value)})
+        self.dismiss({"kind": "totp", "secret": code_engine.normalize_secret(value)})
 
 
 class FormulaPromptScreen(ModalScreen):

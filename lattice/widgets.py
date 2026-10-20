@@ -14,7 +14,7 @@ import pyperclip
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Input, Static
 
-from . import totp
+from . import code_engine
 from .models import cell_text, is_formula, is_totp
 
 # Keys that move the cursor, mapped to (row delta, col delta).
@@ -162,7 +162,7 @@ class Cell(Container):
     def _totp_marker(self) -> str:
         """Seconds left until this code rotates, ticked once a second --
         signals "time-based, about to change" more plainly than a glyph."""
-        remaining = totp.PERIOD - (int(time.time()) % totp.PERIOD)
+        remaining = code_engine.PERIOD - (int(time.time()) % code_engine.PERIOD)
         return f"{remaining:2d}s"
 
     def _display(self) -> str:
@@ -402,7 +402,7 @@ class GridView(VerticalScroll):
             return
         if is_totp(cell.value):
             try:
-                code = totp.generate(cell.value["secret"])
+                code = code_engine.generate(cell.value["secret"])
             except Exception:  # noqa: BLE001 - corrupt/invalid stored secret
                 self.app.set_status("Invalid TOTP secret")
                 return
