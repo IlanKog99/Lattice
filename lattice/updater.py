@@ -131,8 +131,8 @@ def overlay(src_dir: Path, dest_dir: Path) -> None:
     needed. Never deletes anything — files absent from `src_dir` (like
     grid.dat, which is gitignored and so never appears here) are left alone.
 
-    ponytail: overlay-only, so a file removed upstream lingers locally
-    forever. Fine for now; revisit with a manifest-based prune if it bites.
+    ponytail: overlay-only; removed upstream files are swept by name via
+    OBSOLETE. Switch to a manifest-based prune if renames get frequent.
     """
     files = [p for p in src_dir.rglob("*") if p.is_file()]
     # Added files first, overwrites second. If the copy dies partway (a locked
@@ -144,6 +144,22 @@ def overlay(src_dir: Path, dest_dir: Path) -> None:
         dest_path = dest_dir / src_path.relative_to(src_dir)
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_path, dest_path)
+
+
+# Files a past release shipped and a later one removed. overlay() never
+# deletes, so upgraded installs keep them until this sweeps them up.
+OBSOLETE = ("lattice/totp.py", "lattice/__pycache__/totp.*.pyc")
+
+
+def prune_obsolete(root: Path = PROJECT_ROOT) -> None:
+    """Best-effort delete of OBSOLETE leftovers. Runs from the new version's
+    code, so it fixes installs the older, non-pruning overlay upgraded."""
+    for pattern in OBSOLETE:
+        for path in root.glob(pattern):
+            try:
+                path.unlink()
+            except OSError:
+                pass
 
 
 def pip_install() -> bool:
@@ -172,6 +188,7 @@ def run_update_check(
     reports "up to date" instead (used by the manual /update command, which
     should always give feedback).
     """
+    prune_obsolete()
     _report(on_status, "checking for update")
     release = fetch_latest_release()
     if release is None or not is_newer(release["tag_name"], __version__):
