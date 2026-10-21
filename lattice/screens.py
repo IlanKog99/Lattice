@@ -140,7 +140,7 @@ class StepModal(ModalScreen):
         placeholder: str = "",
         initial: str = "",
         on_format: Callable[[], None] | None = None,
-        on_totp: Callable[[], None] | None = None,
+        on_code: Callable[[], None] | None = None,
     ) -> None:
         def deferred(value: str) -> None:
             self.call_after_refresh(on_submit, value)
@@ -148,14 +148,14 @@ class StepModal(ModalScreen):
         field = BoxInput(
             initial, deferred, self.cancel,
             placeholder=placeholder, classes="modalinput",
-            on_format=on_format, on_totp=on_totp,
+            on_format=on_format, on_code=on_code,
         )
         self._swap(Static(prompt, classes="prompt"), field, focus=field)
         keys = [("enter", "save")]
         if on_format is not None:
             keys.append(("ctrl+f", "formula"))
-        if on_totp is not None:
-            keys.append(("ctrl+t", "totp"))
+        if on_code is not None:
+            keys.append(("ctrl+t", "code"))
         keys.append(("esc", "cancel"))
         self.set_keys(_legend(keys))
 
@@ -243,7 +243,7 @@ class AddScreen(StepModal):
             self._value,
             placeholder="leave blank for empty",
             on_format=self._enter_format,
-            on_totp=self._enter_totp,
+            on_code=self._enter_code,
         )
 
     def _value(self, value) -> None:
@@ -260,11 +260,11 @@ class AddScreen(StepModal):
             return
         self._value(spec)
 
-    def _enter_totp(self) -> None:
-        self.app.push_screen(TotpScreen(), self._totp_done)
+    def _enter_code(self) -> None:
+        self.app.push_screen(CodeScreen(), self._code_done)
 
-    def _totp_done(self, spec: dict | None) -> None:
-        if spec is None:  # cancelled the TOTP wizard
+    def _code_done(self, spec: dict | None) -> None:
+        if spec is None:  # cancelled the code wizard
             self._collect()  # re-show the plain text step for this field
             return
         self._value(spec)
@@ -514,35 +514,34 @@ class FormulaScreen(StepModal):
         self.dismiss({"prefix": self.prefix, "suffix": self.suffix, "formula": value})
 
 
-class TotpScreen(StepModal):
-    """Ctrl+T sub-flow: enter a base32 authenticator secret for a cell."""
+class CodeScreen(StepModal):
+    """Ctrl+T sub-flow: enter a base32 seed for a code cell."""
 
-    title_text = "TOTP  —  authenticator secret"
+    title_text = "Code cell  —  seed"
 
     def __init__(self, prefill: dict | None = None) -> None:
         super().__init__()
         self._prefill = prefill or {}
 
     def start(self) -> None:
-        self.step(self._ask_secret)
+        self.step(self._ask_seed)
 
     def cancel(self) -> None:
         self.dismiss(None)
 
-    def _ask_secret(self) -> None:
+    def _ask_seed(self) -> None:
         self.ask_text(
-            "Authenticator secret (base32 — spaces OK):",
-            self._secret_entered,
-            initial=self._prefill.get("secret", ""),
-            placeholder="e.g. JBSW Y3DP EHPK 3PXP",
+            "Seed (base32: letters A-Z, digits 2-7, spaces OK):",
+            self._seed_entered,
+            initial=self._prefill.get("seed", ""),
         )
 
-    def _secret_entered(self, value: str) -> None:
-        if not code_engine.validate_secret(value):
-            self.app.set_status("Bad secret — must be base32 (A-Z, 2-7)")
-            self._ask_secret()  # re-ask; no history push
+    def _seed_entered(self, value: str) -> None:
+        if not code_engine.validate_seed(value):
+            self.app.set_status("Bad seed — must be base32 (A-Z, 2-7)")
+            self._ask_seed()  # re-ask; no history push
             return
-        self.dismiss({"kind": "totp", "secret": code_engine.normalize_secret(value)})
+        self.dismiss({"kind": "code", "seed": code_engine.normalize_seed(value)})
 
 
 class FormulaPromptScreen(ModalScreen):

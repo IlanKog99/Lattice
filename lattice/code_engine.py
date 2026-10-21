@@ -1,4 +1,4 @@
-"""Time-stepped code generation for code-type cells (RFC 6238).
+"""Time-stepped code generation for code-type cells.
 
 Stdlib only. A code cell stores a base32 seed; the 6-digit code is
 computed fresh from that seed and the current time whenever it's
@@ -18,16 +18,16 @@ PERIOD = 30  # seconds
 _ALGO = hashlib.sha1
 
 
-def normalize_secret(secret: str) -> str:
-    """Upper-case, strip whitespace/hyphens, and pad a pasted base32 secret."""
-    text = "".join(secret.split()).replace("-", "").upper()
+def normalize_seed(seed: str) -> str:
+    """Upper-case, strip whitespace/hyphens, and pad a pasted base32 seed."""
+    text = "".join(seed.split()).replace("-", "").upper()
     padding = (-len(text)) % 8
     return text + "=" * padding
 
 
-def validate_secret(secret: str) -> bool:
-    """True if `secret` decodes as base32 once normalised."""
-    normalized = normalize_secret(secret)
+def validate_seed(seed: str) -> bool:
+    """True if `seed` decodes as base32 once normalised."""
+    normalized = normalize_seed(seed)
     if not normalized:
         return False
     try:
@@ -37,9 +37,9 @@ def validate_secret(secret: str) -> bool:
         return False
 
 
-def generate(secret: str, *, when: float | None = None) -> str:
-    """The current (or `when`'s) DIGITS-digit TOTP code for `secret`."""
-    key = base64.b32decode(normalize_secret(secret))
+def generate(seed: str, *, when: float | None = None) -> str:
+    """The current (or `when`'s) DIGITS-digit code for `seed`."""
+    key = base64.b32decode(normalize_seed(seed))
     counter = int((when if when is not None else time.time()) // PERIOD)
     msg = struct.pack(">Q", counter)
     digest = hmac.new(key, msg, _ALGO).digest()
@@ -50,10 +50,10 @@ def generate(secret: str, *, when: float | None = None) -> str:
 
 
 def demo() -> None:
-    secret = base64.b32encode(b"12345678901234567890").decode()
-    assert generate(secret, when=59) == "287082"
-    assert validate_secret("JBSWY3DPEHPK3PXP")
-    assert not validate_secret("not base32!!!")
+    seed = base64.b32encode(b"12345678901234567890").decode()
+    assert generate(seed, when=59) == "287082"
+    assert validate_seed(seed.lower())
+    assert not validate_seed("not base32!!!")
     print("code_engine: ok")
 
 

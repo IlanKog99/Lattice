@@ -31,8 +31,8 @@ Do not add unlock prompts, key derivation, or claims of real security.
    `/undo` can roll it back (in-session only; the undo stack isn't persisted).
 5. **`grid.dat` is git-ignored** and must stay that way.
 6. **Neutral vocabulary.** Keep the domain language generic (grid, cell, value,
-   label, column, row, entry). Avoid framing the contents as credentials in
-   code, comments, or docs.
+   label, column, row, entry, seed, code). Never describe the contents as
+   anything sensitive in code, comments, docs, or commit messages.
 
 ## Architecture
 
@@ -42,12 +42,12 @@ Do not add unlock prompts, key derivation, or claims of real security.
 | `lattice/app.py` | `LatticeApp`: top bar, grid, command bar, status line, command dispatch, `persist()`. |
 | `lattice/widgets.py` | `GridView` (navigation, copy, in-place edit via `e`, find mode via `f`), `Cell`, `BoxInput`, `CommandInput`, `FindInput`. Find matches the label column and highlights matches with the `match` class (teal), separate from the `sel` cursor (ember). |
 | `lattice/screens.py` | `StepModal` base (choice/text steps, key legend, `b`-to-go-back via a history stack) plus `AddScreen`, `RemoveScreen`, `MassScreen`, `FormulaScreen`, `FormulaPromptScreen`. `ConfirmScreen` is a separate yes/no popup pushed on top for `/remove` (dismisses with `"yes"`/`"no"`/`"back"`/`"cancel"`). |
-| `lattice/models.py` | `Grid` / `Column` / `Row` dataclasses, visibility views, mutations, and the `is_formula` / `is_totp` / `cell_text` helpers for the three cell kinds. |
+| `lattice/models.py` | `Grid` / `Column` / `Row` dataclasses, visibility views, mutations, and the `is_formula` / `is_code_cell` / `cell_text` helpers for the three cell kinds. |
 | `lattice/store.py` | `load()` and atomic `save()` through the codec. `DATA_FILE` lives in the project root. |
 | `lattice/codec.py` | `pack()` / `unpack()`: utf-8 → zlib → rolling XOR → base85. The reversible mangling. Changing `_MASK` or `_TAG` invalidates existing stores. |
 | `lattice/formula.py` | Safe `+ - * /` / `INPT` evaluator for formula cells, parsed with `ast` (never `eval()`). |
 | `lattice/updater.py` | Background self-updater: checks GitHub Releases against `__version__`, downloads and overlays a newer release, best-effort `pip install`. See Conventions below. |
-| `lattice/code_engine.py` | Time-stepped code generation (RFC 6238) for code cells: the cell stores a base32 seed, the 6-digit code is derived from seed + clock on every render and copy and is never stored. The stored cell spec keeps its historical `kind` tag, so renaming this module never touches existing stores. |
+| `lattice/code_engine.py` | Time-stepped code generation for code cells (`{"kind": "code", "seed"}`): the cell stores a base32 seed, the 6-digit code is derived from seed + clock on every render and copy and is never stored. `Grid.normalise()` upgrades code cells saved under an older spec by shape, not by name. |
 | `lattice/seed.py` | One-shot importer from a pipe-delimited plain-text table. Reads the source at runtime; never embeds it. |
 
 Data model: column 0 is the label column; columns 1+ are value columns. Every
@@ -102,12 +102,15 @@ A cell holds either a plain string, or a **formula spec** — a
   failure and reports `None` (nothing shown) rather than raising; this is a
   background nicety and must never crash or block the app — an exception
   escaping the worker tears the whole app down with a traceback, it is not
-  merely logged. The overlay step only
-  writes files present in the downloaded release — it never deletes, which
-  is what keeps `grid.dat` safe without an explicit exclusion list (it's
-  gitignored, so it's never in the release zip to begin with). It copies
-  added files before overwriting existing ones, so a copy that dies partway
-  still leaves an importable tree. New code on
+  merely logged. The overlay step
+  replaces the `lattice/` package wholesale: it writes every file in the
+  release, then deletes any file under `lattice/` the release doesn't ship.
+  Nothing outside `lattice/` is ever deleted, which keeps `grid.dat` (root,
+  gitignored, never in the release zip) safe. It copies added files before
+  overwriting existing ones and prunes only after every copy landed, so a
+  copy that dies partway still leaves an importable tree. At startup
+  `prune_stale()` also removes modules older releases dropped (matched by
+  content hash in `_RETIRED`) and bytecode with no source. New code on
   disk only takes effect on the *next* launch, since the running process
   already has the old modules loaded in memory. `/update` runs the same
   check on demand (`announce_current=True` this time, so it reports "up to
@@ -140,7 +143,7 @@ commits left behind.
 ## Release
 
 Whenever `lattice/__init__.py`'s `__version__` is bumped and pushed, run
-`./release.ps1` (local-only, gitignored, uses the already-authenticated `gh`
+`./release.ps1` (local-only, gitignored, uses the already-signed-in `gh`
 CLI) to tag and publish a matching GitHub release. The in-app updater only
 ever sees tagged releases — a version bump without one is invisible to
 users.

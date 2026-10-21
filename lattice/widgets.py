@@ -15,7 +15,7 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Input, Static
 
 from . import code_engine
-from .models import cell_text, is_formula, is_totp
+from .models import cell_text, is_formula, is_code_cell
 
 # Keys that move the cursor, mapped to (row delta, col delta).
 _MOVES = {
@@ -42,13 +42,13 @@ class BoxInput(Input):
         id: str | None = None,
         classes: str | None = None,
         on_format: Callable[[], None] | None = None,
-        on_totp: Callable[[], None] | None = None,
+        on_code: Callable[[], None] | None = None,
     ) -> None:
         super().__init__(value=value, placeholder=placeholder, id=id, classes=classes)
         self._on_submit = on_submit
         self._on_cancel = on_cancel
         self._on_format = on_format
-        self._on_totp = on_totp
+        self._on_code = on_code
 
     def on_key(self, event) -> None:
         if event.key == "enter":
@@ -60,9 +60,9 @@ class BoxInput(Input):
         elif event.key == "ctrl+f" and self._on_format is not None:
             event.stop()
             self._on_format()
-        elif event.key == "ctrl+t" and self._on_totp is not None:
+        elif event.key == "ctrl+t" and self._on_code is not None:
             event.stop()
-            self._on_totp()
+            self._on_code()
 
 
 class FindInput(Input):
@@ -133,11 +133,11 @@ class Cell(Container):
         if header:
             classes += " hcell"   # top header row
         self._is_formula = is_formula(value)
-        self._is_totp = is_totp(value)
+        self._is_code_cell = is_code_cell(value)
         if self._is_formula:
             classes += " formula"
-        if self._is_totp:
-            classes += " totp"
+        if self._is_code_cell:
+            classes += " code"
         super().__init__(classes=classes)
         self._value = value
         self._is_label = is_label
@@ -150,23 +150,23 @@ class Cell(Container):
         yield Static(self._display(), classes="celltext")
 
     def on_mount(self) -> None:
-        if self._is_totp:
-            self.set_interval(1.0, self._totp_tick)
+        if self._is_code_cell:
+            self.set_interval(1.0, self._code_tick)
 
-    def _totp_tick(self) -> None:
+    def _code_tick(self) -> None:
         try:
             self.query_one(".celltext", Static).update(self._display())
         except Exception:  # noqa: BLE001 - widget gone during shutdown
             pass
 
-    def _totp_marker(self) -> str:
+    def _code_marker(self) -> str:
         """Seconds left until this code rotates, ticked once a second --
         signals "time-based, about to change" more plainly than a glyph."""
         remaining = code_engine.PERIOD - (int(time.time()) % code_engine.PERIOD)
         return f"{remaining:2d}s"
 
     def _display(self) -> str:
-        # Labels and headers are identifiers, not secret, so they always show.
+        # Labels and headers are identifiers, not values, so they always show.
         # Value cells stay masked until revealed with /visible.
         if not self._value:
             return " "
@@ -176,8 +176,8 @@ class Cell(Container):
             text = self.MASK
         if self._is_formula:
             return f"ƒ {text}"
-        if self._is_totp:
-            return f"{self._totp_marker()} {text}"
+        if self._is_code_cell:
+            return f"{self._code_marker()} {text}"
         return text
 
     @property
@@ -194,9 +194,9 @@ class Cell(Container):
     def set_value(self, value) -> None:
         self._value = value
         self._is_formula = is_formula(value)
-        self._is_totp = is_totp(value)
+        self._is_code_cell = is_code_cell(value)
         self.set_class(self._is_formula, "formula")
-        self.set_class(self._is_totp, "totp")
+        self.set_class(self._is_code_cell, "code")
         self.query_one(".celltext", Static).update(self._display())
 
     def select(self, on: bool) -> None:
@@ -269,7 +269,7 @@ class GridView(VerticalScroll):
             for ri in self.vrows:
                 value = self.grid.rows[ri].cells[ci]
                 # marker + space prefix: "ƒ " (2 chars) or "29s " (4 chars)
-                marker_width = 2 if is_formula(value) else (4 if is_totp(value) else 0)
+                marker_width = 2 if is_formula(value) else (4 if is_code_cell(value) else 0)
                 text_len = len(cell_text(value)) + marker_width
                 longest = max(longest, text_len)
             width = max(12, min(longest + 2, 42))
@@ -400,11 +400,11 @@ class GridView(VerticalScroll):
 
             self.app.push_screen(FormulaPromptScreen(cell.value), lambda text: self._finish_copy(cell, text))
             return
-        if is_totp(cell.value):
+        if is_code_cell(cell.value):
             try:
-                code = code_engine.generate(cell.value["secret"])
-            except Exception:  # noqa: BLE001 - corrupt/invalid stored secret
-                self.app.set_status("Invalid TOTP secret")
+                code = code_engine.generate(cell.value["seed"])
+            except Exception:  # noqa: BLE001 - corrupt/invalid stored seed
+                self.app.set_status("Invalid code seed")
                 return
             self._finish_copy(cell, code)
             return
@@ -450,12 +450,12 @@ class GridView(VerticalScroll):
             self.app.push_screen(FormulaScreen(prefill=cell.value), done)
             return
 
-        if is_totp(cell.value):
-            from .screens import TotpScreen
+        if is_code_cell(cell.value):
+            from .screens import CodeScreen
 
             self.editing = True
 
-            def totp_done(spec) -> None:
+            def code_done(spec) -> None:
                 self.editing = False
                 self.focus()
                 if spec is None:
@@ -467,7 +467,7 @@ class GridView(VerticalScroll):
                 self.rebuild()
                 self.app.set_status("Saved")
 
-            self.app.push_screen(TotpScreen(prefill=cell.value), totp_done)
+            self.app.push_screen(CodeScreen(prefill=cell.value), code_done)
             return
 
         self.editing = True

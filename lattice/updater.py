@@ -9,13 +9,15 @@ overwriting the .py files on disk doesn't affect the current session at all.
 The new code only takes effect the next time Lattice is launched, so there is
 no in-process restart to orchestrate.
 
-grid.dat is gitignored and therefore never present in the release zip, so an
-additive overlay (write/overwrite, never delete-then-extract) protects it
-without needing an explicit exclusion list.
+The overlay replaces the `lattice/` package wholesale: every file the release
+ships is written, and any file under `lattice/` the release doesn't ship is
+deleted. Nothing outside `lattice/` is ever deleted, so grid.dat (gitignored,
+never in the release zip, and living in the project root) is always safe.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -128,11 +130,9 @@ def extract_and_strip(zip_path: Path, dest_dir: Path) -> Path | None:
 
 def overlay(src_dir: Path, dest_dir: Path) -> None:
     """Copy every file from `src_dir` onto `dest_dir`, creating folders as
-    needed. Never deletes anything — files absent from `src_dir` (like
-    grid.dat, which is gitignored and so never appears here) are left alone.
-
-    ponytail: overlay-only; removed upstream files are swept by name via
-    OBSOLETE. Switch to a manifest-based prune if renames get frequent.
+    needed, then delete any file under `dest_dir/lattice` that the release
+    doesn't ship (old modules, stale bytecode). Nothing outside `lattice/` is
+    deleted, so grid.dat and other local files in the root are left alone.
     """
     files = [p for p in src_dir.rglob("*") if p.is_file()]
     # Added files first, overwrites second. If the copy dies partway (a locked
@@ -145,21 +145,47 @@ def overlay(src_dir: Path, dest_dir: Path) -> None:
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_path, dest_path)
 
-
-# Files a past release shipped and a later one removed. overlay() never
-# deletes, so upgraded installs keep them until this sweeps them up.
-OBSOLETE = ("lattice/totp.py", "lattice/__pycache__/totp.*.pyc")
-
-
-def prune_obsolete(root: Path = PROJECT_ROOT) -> None:
-    """Best-effort delete of OBSOLETE leftovers. Runs from the new version's
-    code, so it fixes installs the older, non-pruning overlay upgraded."""
-    for pattern in OBSOLETE:
-        for path in root.glob(pattern):
+    # Prune only after every copy landed, and only against a release that
+    # really contains the package -- a malformed zip must never empty it.
+    src_pkg, dest_pkg = src_dir / "lattice", dest_dir / "lattice"
+    if not (src_pkg / "__init__.py").is_file():
+        return
+    for dest_path in [p for p in dest_pkg.rglob("*") if p.is_file()]:
+        if not (src_pkg / dest_path.relative_to(dest_pkg)).is_file():
             try:
-                path.unlink()
+                dest_path.unlink()
             except OSError:
-                pass
+                pass  # a leftover file is harmless; the new code is already in
+
+
+# Content hashes (LF and CRLF) of modules earlier releases shipped and later
+# ones dropped. Installs upgraded by the older, never-deleting overlay still
+# carry them, and the overlay above only runs on the *next* update, so they're
+# matched by content and removed at startup.
+_RETIRED = {
+    "9714f32b5e59635b74103f8a5e80b5876eec070879ce7296b163c7133f9602b9",
+    "36e579544ca3689bdaba5346164658d17e8131c9a24d68200b6e6e5eb28b7c80",
+}
+
+
+def prune_stale(root: Path = PROJECT_ROOT) -> None:
+    """Best-effort: delete retired modules and any bytecode whose source
+    module no longer exists."""
+    pkg = root / "lattice"
+    try:
+        stale = [p for p in pkg.glob("*.py") if hashlib.sha256(p.read_bytes()).hexdigest() in _RETIRED]
+    except OSError:
+        return
+    stale += [
+        p for p in pkg.glob("__pycache__/*.pyc")
+        if not (pkg / f"{p.name.split('.')[0]}.py").is_file()
+        or (pkg / f"{p.name.split('.')[0]}.py") in stale
+    ]
+    for path in stale:
+        try:
+            path.unlink()
+        except OSError:
+            pass
 
 
 def pip_install() -> bool:
@@ -188,7 +214,7 @@ def run_update_check(
     reports "up to date" instead (used by the manual /update command, which
     should always give feedback).
     """
-    prune_obsolete()
+    prune_stale()
     _report(on_status, "checking for update")
     release = fetch_latest_release()
     if release is None or not is_newer(release["tag_name"], __version__):

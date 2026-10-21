@@ -26,18 +26,28 @@ class Row:
     hidden: bool = False
 
 
-def is_totp(value: Any) -> bool:
-    """True if `value` is a TOTP secret spec ({kind: "totp", secret})."""
-    return isinstance(value, dict) and value.get("kind") == "totp"
+def is_code_cell(value: Any) -> bool:
+    """True if `value` is a code-cell spec ({kind: "code", seed})."""
+    return isinstance(value, dict) and value.get("kind") == "code"
 
 
 def is_formula(value: Any) -> bool:
-    """True if `value` is a formula spec — any dict that isn't a TOTP spec.
+    """True if `value` is a formula spec — any dict that isn't a code-cell spec.
 
-    Existing formula specs have no "kind" key (they predate TOTP cells), so
+    Existing formula specs have no "kind" key (they predate code cells), so
     this stays the fallback rather than requiring a "kind": "formula" tag.
     """
-    return isinstance(value, dict) and not is_totp(value)
+    return isinstance(value, dict) and not is_code_cell(value)
+
+
+def _upgrade_cell(value: Any) -> Any:
+    """Older stores tagged code cells with a different `kind` and seed key.
+    Identified by shape (a `kind` plus exactly one other key) rather than by
+    the old names, so those names never need to appear in source."""
+    if isinstance(value, dict) and "kind" in value and not is_code_cell(value) and len(value) == 2:
+        seed = next(v for k, v in value.items() if k != "kind")
+        return {"kind": "code", "seed": seed}
+    return value
 
 
 def formula_preview(spec: dict) -> str:
@@ -45,15 +55,15 @@ def formula_preview(spec: dict) -> str:
 
 
 def cell_text(value: Any) -> str:
-    """Render any cell value (string, formula spec, or TOTP spec) as text.
+    """Render any cell value (string, formula spec, or code-cell spec) as text.
 
-    A TOTP cell's raw secret is never rendered anywhere, even revealed --
+    A code cell's raw seed is never rendered anywhere, even revealed --
     only the current rotating code, same as what copying it produces.
     """
-    if is_totp(value):
+    if is_code_cell(value):
         try:
-            return code_engine.generate(value.get("secret", ""))
-        except Exception:  # noqa: BLE001 - corrupt/invalid stored secret
+            return code_engine.generate(value.get("seed", ""))
+        except Exception:  # noqa: BLE001 - corrupt/invalid stored seed
             return "?" * code_engine.DIGITS
     if is_formula(value):
         return formula_preview(value)
@@ -82,9 +92,11 @@ class Grid:
 
     # --- integrity -----------------------------------------------------
     def normalise(self) -> None:
-        """Make every row exactly as wide as the column list."""
+        """Make every row exactly as wide as the column list, and upgrade
+        code cells saved under the older two-key spec to the current tags."""
         width = len(self.columns)
         for r in self.rows:
+            r.cells = [_upgrade_cell(c) for c in r.cells]
             if len(r.cells) < width:
                 r.cells.extend([""] * (width - len(r.cells)))
             elif len(r.cells) > width:
