@@ -21,8 +21,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from . import store
 from .models import Column, Grid, Row
-from .store import DATA_FILE, save
 
 
 def _split_row(line: str) -> list[str]:
@@ -59,18 +59,27 @@ def parse_text(text: str) -> Grid:
 
 
 def main(argv: list[str]) -> int:
+    force = "--force" in argv
+    argv = [a for a in argv if a != "--force"]
     if len(argv) != 1:
-        print("usage: python -m lattice.seed <plain_table.txt>")
+        print("usage: python -m lattice.seed <plain_table.txt> [--force]")
         return 2
     src = Path(argv[0])
     if not src.exists():
         print(f"no such file: {src}")
         return 1
+    if store.DATA_FILE.exists() and not force:
+        print(f"{store.DATA_FILE.name} already exists; pass --force to replace it")
+        return 1
     grid = parse_text(src.read_text(encoding="utf-8"))
-    save(grid)
+    try:
+        store.save(grid)
+    except OSError as exc:
+        print(f"can't write {store.DATA_FILE}: {exc}")
+        return 1
     print(
         f"Imported {len(grid.rows)} rows x {len(grid.columns)} columns "
-        f"into {DATA_FILE.name}"
+        f"into {store.DATA_FILE.name}"
     )
     return 0
 

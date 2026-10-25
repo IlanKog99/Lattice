@@ -30,3 +30,6 @@ release.ps1
 .impeccable/
 .superpowers/
 docs/superpowers/
+
+# graph-engineer run state (plans, lane reports) — local only
+.graph-engineer/

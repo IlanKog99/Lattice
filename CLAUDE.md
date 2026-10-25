@@ -5,13 +5,16 @@ Guidance for any AI or human working in this repository.
 ## What this is
 
 A Textual (Python) terminal app that manages a grid of labelled cells. The grid
-is held on disk in an **encoded, non-readable store** (`grid.dat`) and is only
-ever decoded into plain text **in memory** at runtime. The on-disk file must
-never contain readable content.
+is held on disk in an **encoded, sealed store** (`grid.dat`) and is only ever
+decoded into plain text **in memory** at runtime. The on-disk file must never
+contain readable content.
 
-This is **security through obscurity**, by deliberate choice — not real
-cryptography. The goal is simply that the data file is opaque and not greppable.
-Do not add unlock prompts, key derivation, or claims of real security.
+`grid.dat` is sealed with **Windows DPAPI** for the current Windows user
+(`DP1:` prefix). There is no unlock prompt: Windows opens it for the logged-in
+account and nobody else. Older unsealed stores still open and are re-saved
+sealed on first load. To move a grid to another PC or user, `/export` writes a
+passphrase-protected `LX1:` file (scrypt + AES-GCM) and `/import` reads it. Do
+not add prompts to normal use.
 
 ## Hard rules — do not break these
 
@@ -43,8 +46,11 @@ Do not add unlock prompts, key derivation, or claims of real security.
 | `lattice/widgets.py` | `GridView` (navigation, copy, in-place edit via `e`, find mode via `f`), `Cell`, `BoxInput`, `CommandInput`, `FindInput`. Find matches the label column and highlights matches with the `match` class (teal), separate from the `sel` cursor (ember). |
 | `lattice/screens.py` | `StepModal` base (choice/text steps, key legend, `b`-to-go-back via a history stack) plus `AddScreen`, `RemoveScreen`, `MassScreen`, `FormulaScreen`, `FormulaPromptScreen`. `ConfirmScreen` is a separate yes/no popup pushed on top for `/remove` (dismisses with `"yes"`/`"no"`/`"back"`/`"cancel"`). |
 | `lattice/models.py` | `Grid` / `Column` / `Row` dataclasses, visibility views, mutations, and the `is_formula` / `is_code_cell` / `cell_text` helpers for the three cell kinds. |
-| `lattice/store.py` | `load()` and atomic `save()` through the codec. `DATA_FILE` lives in the project root. |
-| `lattice/codec.py` | `pack()` / `unpack()`: utf-8 → zlib → rolling XOR → base85. The reversible mangling. Changing `_MASK` or `_TAG` invalidates existing stores. |
+| `lattice/store.py` | `load()` (upgrades a legacy store to sealed `DP1:`; if that write fails the grid still loads and the upgrade retries next load; raises `ForeignStoreError` for another user's file, `ValueError` for other unreadable data) and verified atomic `save()`. `DATA_FILE` lives in the project root. |
+| `lattice/codec.py` | `pack()` / `unpack()`: utf-8 → zlib → rolling XOR → base85 (legacy form, unchanged). `seal()` / `open_blob()` add the DPAPI layer (`DP1:`). Changing `_MASK` or `_TAG` invalidates existing stores. |
+| `lattice/dpapi.py` | `protect()` / `unprotect()` via `ctypes` → `crypt32`. CurrentUser scope, fixed app entropy. |
+| `lattice/vault_io.py` | `/export` / `/import` file format (`LX1:`): passphrase → scrypt → AES-GCM. `cryptography` is imported lazily, so the app runs without it. `/import` also accepts the old unsealed export format, with no passphrase. |
+| `tests/` | stdlib `unittest` suite (`python -m unittest -v`). Dummy data only. |
 | `lattice/formula.py` | Safe `+ - * /` / `INPT` evaluator for formula cells, parsed with `ast` (never `eval()`). |
 | `lattice/updater.py` | Background self-updater: checks GitHub Releases against `__version__`, downloads and overlays a newer release, best-effort `pip install`. See Conventions below. |
 | `lattice/code_engine.py` | Time-stepped code generation for code cells (`{"kind": "code", "seed"}`): the cell stores a base32 seed, the 6-digit code is derived from seed + clock on every render and copy and is never stored. `Grid.normalise()` upgrades code cells saved under an older spec by shape, not by name. |
@@ -121,12 +127,17 @@ A cell holds either a plain string, or a **formula spec** — a
   that flag *after* `App.run()` returns and, if set, replaces the process
   with `os.execv(sys.executable, [sys.executable, "-m", "lattice"])` — same
   window, fresh interpreter, picks up whatever's now on disk.
+- Read-only mode: if `store.load()` raises, `LatticeApp.read_only` holds the
+  message and `persist()` refuses to write, so a store that couldn't be opened
+  is never overwritten. A successful `/import` (`apply_import`) clears it.
 
 ## Testing
 
-There are no committed tests (the smoke tests live outside the repo to avoid
-embedding data). When testing flows with `App.run_test`, **redirect
-`store.DATA_FILE` to a temp copy first** so the real store is never written.
+`python -m unittest -v` from the repo root runs `tests/`. Tests use dummy
+placeholder data only and real DPAPI calls (Windows-only suite). Any test that
+touches the store patches `store.DATA_FILE` to a temp dir first, and app tests
+patch out the update check and What's New popup, so the real store and the
+network are never touched.
 
 ## Run
 
@@ -147,3 +158,10 @@ Whenever `lattice/__init__.py`'s `__version__` is bumped and pushed, run
 CLI) to tag and publish a matching GitHub release. The in-app updater only
 ever sees tagged releases — a version bump without one is invisible to
 users.
+
+**Every version bump ships release notes.** Write
+`release_notes/v<version>.md` (committed) before running `release.ps1`: plain
+`* ` bullets, user-facing wording, neutral vocabulary (rule 6), no heading.
+`release.ps1` publishes it as the GitHub release body, which is exactly what
+`/new` (and the auto What's New popup) displays. `release.ps1` refuses to
+release without it.

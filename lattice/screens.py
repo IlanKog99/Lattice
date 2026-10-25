@@ -1,4 +1,4 @@
-"""Modal flows for the slash commands: add, remove (hide), and mass update.
+"""Modal flows for the slash commands: add, remove (hide), mass update, export, import.
 
 Each command is a small step machine (`StepModal`) that swaps its body between
 a choice list and a text prompt. A short key legend is shown at the bottom of
@@ -11,6 +11,8 @@ from inside the event (key press / option select) that triggered the step.
 
 from __future__ import annotations
 
+from datetime import date
+from pathlib import Path
 from typing import Callable
 
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -18,7 +20,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, OptionList, Static
 from textual.widgets.option_list import Option
 
-from . import code_engine, formula
+from . import code_engine, formula, vault_io
 from .models import cell_text
 from .widgets import BoxInput
 
@@ -141,6 +143,7 @@ class StepModal(ModalScreen):
         initial: str = "",
         on_format: Callable[[], None] | None = None,
         on_code: Callable[[], None] | None = None,
+        password: bool = False,
     ) -> None:
         def deferred(value: str) -> None:
             self.call_after_refresh(on_submit, value)
@@ -148,7 +151,7 @@ class StepModal(ModalScreen):
         field = BoxInput(
             initial, deferred, self.cancel,
             placeholder=placeholder, classes="modalinput",
-            on_format=on_format, on_code=on_code,
+            on_format=on_format, on_code=on_code, password=password,
         )
         self._swap(Static(prompt, classes="prompt"), field, focus=field)
         keys = [("enter", "save")]
@@ -618,3 +621,102 @@ class WhatsNewScreen(ModalScreen):
         if event.key in ("enter", "escape"):
             event.stop()
             self.dismiss()
+
+
+def default_export_path() -> str:
+    return str(Path.home() / "Documents" / f"lattice-export-{date.today():%Y-%m-%d}.lattice")
+
+
+def default_import_path() -> str:
+    return str(Path.home() / "Documents") + "\\"
+
+
+class ExportScreen(StepModal):
+    title_text = "/export  —  save a portable copy"
+
+    def start(self) -> None:
+        if self.app.read_only:  # the grid in memory is an empty placeholder
+            self.app.set_status("Nothing to export — grid.dat couldn't be opened here")
+            self.cancel()
+            return
+        self.step(self._ask_path)
+
+    def _ask_path(self) -> None:
+        self.ask_text("Export to file:", self._path_given, initial=default_export_path())
+
+    def _path_given(self, path: str) -> None:
+        self.path = path.strip()
+        if not self.path:
+            self.app.set_status("Path cannot be empty")
+            self.cancel()
+            return
+        self._ask_passphrase()
+
+    def _ask_passphrase(self) -> None:
+        self.ask_text("Passphrase (needed to import it):", self._passphrase_given, password=True)
+
+    def _passphrase_given(self, value: str) -> None:
+        if not value:
+            self.app.set_status("Passphrase cannot be empty")
+            self._ask_passphrase()
+            return
+        self.passphrase = value
+        self.ask_text("Type the passphrase again:", self._confirm_given, password=True)
+
+    def _confirm_given(self, value: str) -> None:
+        if value != self.passphrase:
+            self.app.set_status("Passphrases don't match — try again")
+            self._ask_passphrase()
+            return
+        try:
+            vault_io.export_grid(self.app.grid, self.path, self.passphrase)
+        except ValueError as exc:  # VaultIOError; vault_io maps OSError and NUL paths to it
+            self.app.set_status(str(exc))
+            self.cancel()
+            return
+        self.app.set_status(f"Exported to {self.path}")
+        self.dismiss(False)
+
+
+class ImportScreen(StepModal):
+    title_text = "/import  —  replace the grid from a file"
+
+    def start(self) -> None:
+        self.step(self._ask_path)
+
+    def _ask_path(self) -> None:
+        self.ask_text("Import from file:", self._path_given, initial=default_import_path())
+
+    def _path_given(self, path: str) -> None:
+        self.path = path.strip()
+        try:
+            locked = vault_io.needs_passphrase(self.path)
+        except ValueError as exc:  # VaultIOError; vault_io maps OSError and NUL paths to it
+            self.app.set_status(str(exc))
+            self.cancel()
+            return
+        if locked:
+            self.ask_text("Passphrase:", self._load, password=True)
+        else:
+            self._load(None)
+
+    def _load(self, passphrase: str | None) -> None:
+        try:
+            self.grid = vault_io.import_grid(self.path, passphrase)
+        except ValueError as exc:
+            self.app.set_status(str(exc))
+            self.cancel()
+            return
+        question = (
+            "Replace grid.dat (it can't be opened here) with this file?\nThis can't be undone."
+            if self.app.read_only
+            else "Replace the current grid with this file?\nYou can /undo it."
+        )
+        self.app.push_screen(ConfirmScreen(question), self._confirmed)
+
+    def _confirmed(self, result) -> None:
+        if result == "yes":
+            self.app.apply_import(self.grid)
+            self.dismiss(True)
+        else:
+            self.cancel()

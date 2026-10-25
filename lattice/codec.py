@@ -6,12 +6,18 @@ like anything meaningful and the contents should never be greppable. The
 transform is fully reversible and happens entirely in memory on load.
 
 Pipeline:  text -> utf-8 -> zlib deflate -> rolling XOR -> base85 -> ascii
+
+On disk the store is additionally sealed with Windows DPAPI for the current
+user: ``DP1:`` + base85(DPAPI(pack(text))). Files without the prefix are the
+older unsealed form and still open; the store re-saves them sealed.
 """
 
 from __future__ import annotations
 
 import base64
 import zlib
+
+from . import dpapi
 
 # Rolling mask. Changing this invalidates existing data files.
 _MASK = bytes(
@@ -42,3 +48,24 @@ def unpack(blob: str) -> str:
         return zlib.decompress(raw[len(_TAG):]).decode("utf-8")
     except Exception as exc:  # noqa: BLE001 - normalise to one error type
         raise ValueError("unreadable data file") from exc
+
+
+_SEALED = "DP1:"  # base85 has no ':', so a legacy blob can never start with this
+
+
+def seal(text: str) -> str:
+    """pack() the text, then DPAPI-seal it for the current Windows user."""
+    return _SEALED + base64.b85encode(dpapi.protect(pack(text).encode("ascii"))).decode("ascii")
+
+
+def is_legacy(blob: str) -> bool:
+    return not blob.strip().startswith(_SEALED)
+
+
+def open_blob(blob: str) -> str:
+    """Open a sealed or legacy blob. DpapiError if Windows refuses the seal."""
+    blob = blob.strip()
+    if not blob.startswith(_SEALED):
+        return unpack(blob)
+    raw = base64.b85decode(blob[len(_SEALED):].encode("ascii"))
+    return unpack(dpapi.unprotect(raw).decode("ascii"))

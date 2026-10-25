@@ -43,8 +43,9 @@ class BoxInput(Input):
         classes: str | None = None,
         on_format: Callable[[], None] | None = None,
         on_code: Callable[[], None] | None = None,
+        password: bool = False,
     ) -> None:
-        super().__init__(value=value, placeholder=placeholder, id=id, classes=classes)
+        super().__init__(value=value, placeholder=placeholder, id=id, classes=classes, password=password)
         self._on_submit = on_submit
         self._on_cancel = on_cancel
         self._on_format = on_format
@@ -443,9 +444,8 @@ class GridView(VerticalScroll):
                     return
                 self.app.push_undo()
                 self.grid.set_cell(ri, ci, spec)
-                self.app.persist()
+                self.app.persist("Saved")
                 self.rebuild()
-                self.app.set_status("Saved")
 
             self.app.push_screen(FormulaScreen(prefill=cell.value), done)
             return
@@ -463,9 +463,8 @@ class GridView(VerticalScroll):
                     return
                 self.app.push_undo()
                 self.grid.set_cell(ri, ci, spec)
-                self.app.persist()
+                self.app.persist("Saved")
                 self.rebuild()
-                self.app.set_status("Saved")
 
             self.app.push_screen(CodeScreen(prefill=cell.value), code_done)
             return
@@ -475,11 +474,10 @@ class GridView(VerticalScroll):
         def submit(value: str) -> None:
             self.app.push_undo()
             self.grid.set_cell(ri, ci, value)
-            self.app.persist()
+            self.app.persist("Saved")
             self.editing = False
             self.rebuild()
             self.focus()
-            self.app.set_status("Saved")
 
         def cancel() -> None:
             cell.end_edit()
@@ -500,10 +498,9 @@ class GridView(VerticalScroll):
         ri = self.vrows[self.cursor[0]]
         ci = self.vcols[self.cursor[1]]
         self.grid.set_cell(ri, ci, "")
-        self.app.persist()
+        self.app.persist("Cleared (undo with /undo)")
         self.rebuild()
         self.focus()
-        self.app.set_status("Cleared (undo with /undo)")
 
     # --- move mode (reorder rows/columns) ------------------------------
     def enter_move(self) -> None:
@@ -575,7 +572,6 @@ class GridView(VerticalScroll):
     def finish_move(self, apply: bool) -> None:
         if apply:
             self.app.push_undo_state(self._move_original)
-            self.app.persist()
         else:
             self.app.grid = self._move_original
         self.move_mode = False
@@ -584,7 +580,10 @@ class GridView(VerticalScroll):
         self.remove_class("movemode")
         self.rebuild()
         self.focus()
-        self.app.set_status("New order saved" if apply else "Move cancelled")
+        if apply:
+            self.app.persist("New order saved")
+        else:
+            self.app.set_status("Move cancelled")
 
     # --- rename mode (edit row/column headers) -------------------------
     def enter_rename(self) -> None:
@@ -644,11 +643,10 @@ class GridView(VerticalScroll):
                 self.grid.columns[self.vcols[idx]].name = value
             else:
                 self.grid.rows[self.vrows[idx]].cells[0] = value
-            self.app.persist()
+            self.app.persist("Renamed")
             self.editing = False
             self.rebuild()
             self.focus()
-            self.app.set_status("Renamed")
 
         def cancel() -> None:
             cell.end_edit()

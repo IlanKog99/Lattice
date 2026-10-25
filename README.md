@@ -5,9 +5,10 @@ on disk in an **encoded, non-readable** store; it is only ever expanded into
 plain text inside memory while the app is running. Open the data file in a text
 editor and you'll see noise.
 
-This is *obscurity, not security*. There is no master key and no real
-encryption — the file is simply mangled so it isn't readable or greppable at a
-glance. Don't rely on it to protect anything that truly matters.
+The file is also sealed to your Windows account with Windows DPAPI: it opens
+for you on this PC with no prompt, and for nobody else. To move your grid
+to another PC or account, use `/export` (you pick a passphrase) and `/import`
+on the other side.
 
 ```
   Region       Field A        Field B        Field C
@@ -81,6 +82,8 @@ also click an entry.
 | `/mass` | Update many cells of one row or column in order. Type each new value and press `Enter`; an **empty line finishes** and saves. |
 | `/move` | Reorder rows and columns (see **Move mode** below). |
 | `/rename` | Rename a row or column header (see **Rename mode** below). |
+| `/export` | Save a passphrase-protected copy of the grid (prefilled path in `Documents`). Use it to move the grid to another PC or Windows account. |
+| `/import` | Replace the grid from an exported file. Asks for the passphrase, then Yes/No. `/undo` brings the previous grid back. |
 | `/undo` | Undo the last change (edit, clear, add, hide, or mass update). Can be repeated to step further back. |
 | `/visible` | Reveal **all** values for **1 minute**, then they re-mask automatically. (To peek a single cell instead, hold `V`.) |
 | `/visible N` | Reveal for `N` minutes instead (e.g. `/visible 5`). |
@@ -132,6 +135,7 @@ Requires **Python 3.10+** on Windows.
    program. Once seeded, you can delete the readable source file — the app
    reads only the encoded `grid.dat` from then on. You can also skip seeding
    entirely and build the grid from scratch with `/add`.
+   Seeding refuses to replace an existing `grid.dat`; add `--force` to overwrite it.
 
 4. Run it:
 
@@ -150,6 +154,8 @@ Lattice/
 ├─ Lattice.pyw          Double-click launcher (opens a terminal, then runs)
 ├─ make_shortcut.ps1    Creates the Start Menu shortcut
 ├─ requirements.txt
+├─ release_notes/       What /new shows, one file per version
+├─ tests/               unittest suite
 ├─ grid.dat             The encoded store (created at runtime; git-ignored)
 └─ lattice/
    ├─ app.py            App shell: top bar, grid, command bar, status line
@@ -158,6 +164,8 @@ Lattice/
    ├─ models.py         Grid / Column / Row data model
    ├─ store.py          Load & atomic auto-save
    ├─ codec.py          Reversible byte mangling for the store
+   ├─ dpapi.py          Windows DPAPI seal for the store
+   ├─ vault_io.py       /export and /import file format
    ├─ formula.py        Safe INPT / + - * / evaluator for formula cells
    ├─ updater.py        Background self-update from GitHub releases
    └─ seed.py           One-shot importer from a plain-text table

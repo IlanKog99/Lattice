@@ -10,11 +10,15 @@ import pyperclip
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.content import Content
 from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
 from . import APP_NAME, __version__, store, updater
-from .screens import AddScreen, ConfirmScreen, MassScreen, RemoveScreen, WhatsNewScreen
+from .models import Grid
+from .screens import (
+    AddScreen, ConfirmScreen, ExportScreen, ImportScreen, MassScreen, RemoveScreen, WhatsNewScreen,
+)
 from .widgets import CommandInput, FindInput, GridView
 
 WHATSNEW_MARKER = updater.PROJECT_ROOT / ".whatsnew_seen"
@@ -75,6 +79,8 @@ _COMMANDS = {
     "add": AddScreen,
     "remove": RemoveScreen,
     "mass": MassScreen,
+    "export": ExportScreen,
+    "import": ImportScreen,
 }
 
 # Everything the autocomplete menu can offer: (name, description).
@@ -84,6 +90,8 @@ COMMAND_INFO = [
     ("mass", "Update many cells in order"),
     ("move", "Reorder rows and columns"),
     ("rename", "Rename a row or column header"),
+    ("export", "Save a passphrase-protected copy to move elsewhere"),
+    ("import", "Replace the grid from an exported file"),
     ("undo", "Undo the last change"),
     ("visible", "Reveal values (e.g. /visible 5)"),
     ("hide", "Mask values now"),
@@ -105,10 +113,20 @@ class LatticeApp(App):
 
     def __init__(self) -> None:
         super().__init__()
-        self.grid = store.load()
+        # Set when grid.dat can't be opened: nothing is saved until /import.
+        self.read_only: str | None = None
+        try:
+            self.grid = store.load()
+        except (ValueError, OSError) as exc:  # OSError: locked or unreadable file
+            self.grid = Grid()
+            self.read_only = (
+                str(exc) if isinstance(exc, store.ForeignStoreError)
+                else "grid.dat can't be read — /import a file to replace it"
+            )
         self.revealed = False
         self._reveal_timer = None
         self._undo: list = []
+        self._status_timer = None
         self._save_frame = 0
         self._save_anim = None
         self._save_hide = None
@@ -150,7 +168,9 @@ class LatticeApp(App):
                 yield CommandInput(id="cmdinput", select_on_focus=False)
 
     def on_mount(self) -> None:
-        if not self.grid.columns:
+        if self.read_only:
+            self.set_status(self.read_only)
+        elif not self.grid.columns:
             self.set_status("Empty store — use /add to begin, or seed from a file")
         self.set_interval(1.0, self._poll_clipboard)
         self.run_worker(self._check_for_update, thread=True)
@@ -246,10 +266,24 @@ class LatticeApp(App):
     def grid_view(self) -> GridView:
         return self.query_one(GridView)
 
-    def persist(self) -> None:
-        """Auto-save: called after every change that touches the store."""
-        store.save(self.grid)
+    def persist(self, done: str | None = None) -> bool:
+        """Auto-save: called after every change that touches the store.
+
+        Shows `done` on success. Returns False when read-only blocked the
+        write or the save failed (that message is shown instead).
+        """
+        if self.read_only:
+            self.set_status(self.read_only)  # never overwrite a store we couldn't open
+            return False
+        try:
+            store.save(self.grid)
+        except (OSError, ValueError) as exc:  # disk / DPAPI / verify failure
+            self.set_status(f"Not saved — {exc}")
+            return False
         self._show_saving()
+        if done:
+            self.set_status(done)
+        return True
 
     # --- auto-save indicator -------------------------------------------
     def _show_saving(self) -> None:
@@ -298,9 +332,28 @@ class LatticeApp(App):
             self.set_status("Nothing to undo")
             return
         self.grid = self._undo.pop()
-        self.persist()
+        self.persist("Undid last change")
         self.refresh_grid()
-        self.set_status("Undid last change")
+
+    def apply_import(self, grid: Grid) -> None:
+        """Replace the whole grid with an imported one (undoable unless read-only)."""
+        try:
+            store.save(grid)  # save first: nothing changes unless it landed
+        except (OSError, ValueError) as exc:
+            self.set_status(f"Import not saved — {exc}")
+            return
+        if self.read_only:
+            # The old grid was a placeholder, never on disk: nothing to undo to.
+            self._undo.clear()
+            message = "Imported"
+        else:
+            self.push_undo()
+            message = "Imported — /undo to go back"
+        self.grid = grid
+        self.read_only = None
+        self._show_saving()
+        self.refresh_grid()
+        self.set_status(message)
 
     # --- move mode -----------------------------------------------------
     def enter_move(self) -> None:
@@ -339,14 +392,16 @@ class LatticeApp(App):
             return MOVE_HINTS
         if gv.rename_mode:
             return RENAME_HINTS
-        return HINTS
+        return self.read_only or HINTS
 
     def set_status(self, message: str | None = None) -> None:
         bar = self.query_one("#status", Static)
         base = self._base_hints()
-        bar.update(message or base)
-        if message:
-            self.set_timer(2.6, lambda: bar.update(self._base_hints()))
+        # message is plain text (paths, exception text): never parsed as markup
+        bar.update(Content(message) if message else base)
+        if self._status_timer is not None:
+            self._status_timer.stop()  # an older message's timer must not wipe this one
+        self._status_timer = self.set_timer(2.6, lambda: bar.update(self._base_hints())) if message else None
 
     # --- command bar + autocomplete menu -------------------------------
     def open_command(self) -> None:

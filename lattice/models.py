@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import code_engine
+from . import code_engine, formula
 
 
 @dataclass
@@ -84,10 +84,33 @@ class Grid:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Grid":
+        if not isinstance(data, dict):
+            raise ValueError("Not a Lattice file")
         cols = [Column(c["name"], c.get("hidden", False)) for c in data.get("columns", [])]
-        rows = [Row(list(r["cells"]), r.get("hidden", False)) for r in data.get("rows", [])]
+        rows = [Row(r["cells"], r.get("hidden", False)) for r in data.get("rows", [])]
+        # Wrong JSON types would load fine and crash rendering later.
+        if not (
+            all(isinstance(c.name, str) and isinstance(c.hidden, bool) for c in cols)
+            and all(
+                isinstance(r.cells, list) and isinstance(r.hidden, bool)
+                and all(isinstance(v, (str, dict)) for v in r.cells)
+                for r in rows
+            )
+        ):
+            raise ValueError("Not a Lattice file")
         grid = cls(cols, rows)
         grid.normalise()
+        # After normalise so legacy code cells are already upgraded. A formula
+        # spec needs a valid str formula (and str prefix/suffix), a code cell a
+        # str seed, or copying crashes.
+        if not all(
+            isinstance(v.get("seed", ""), str) if is_code_cell(v) else (
+                isinstance(v.get("formula"), str) and formula.validate(v["formula"])
+                and all(isinstance(v.get(k, ""), str) for k in ("prefix", "suffix"))
+            )
+            for r in grid.rows for v in r.cells if isinstance(v, dict)
+        ):
+            raise ValueError("Not a Lattice file")
         return grid
 
     # --- integrity -----------------------------------------------------
