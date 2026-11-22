@@ -1,18 +1,20 @@
-"""Background self-updater: pulls the latest GitHub release and overlays it.
+"""Update check and on-demand install from GitHub releases.
 
-Every network/filesystem/subprocess call here is best-effort — this is a
-background nicety, not a critical path, so failures are swallowed and simply
-leave the app as it was (never crash, never block the running session).
+Nothing here runs code from the network on its own. At launch (and once a
+day while the app is open) Lattice only *checks* whether a newer release
+exists — `check_for_update()` reads release metadata and writes nothing to
+disk. Downloading and installing happens solely when the user runs
+`/update`, via `apply_update()`, after which the app relaunches itself.
 
-Because the running process already has its modules loaded in memory,
-overwriting the .py files on disk doesn't affect the current session at all.
-The new code only takes effect the next time Lattice is launched, so there is
-no in-process restart to orchestrate.
+Every network/filesystem/subprocess call here is best-effort: failures are
+caught and reported as None/False rather than raised, so the caller (a
+worker thread) never crashes the app.
 
-The overlay replaces the `lattice/` package wholesale: every file the release
-ships is written, and any file under `lattice/` the release doesn't ship is
-deleted. Nothing outside `lattice/` is ever deleted, so grid.dat (gitignored,
-never in the release zip, and living in the project root) is always safe.
+The install replaces the `lattice/` package wholesale: every file the
+release ships is written, and any file under `lattice/` the release doesn't
+ship is deleted. Nothing outside `lattice/` is ever deleted, so grid.dat
+(gitignored, never in the release zip, and living in the project root) is
+always safe.
 """
 
 from __future__ import annotations
@@ -69,14 +71,45 @@ def is_newer(remote_tag: str, local_version: str) -> bool:
 
 
 def fetch_latest_release() -> dict | None:
-    """{"tag_name": ..., "zipball_url": ...} for the latest release, or None."""
+    """{"tag_name", "zipball_url", "body"} for the latest release, or None."""
     try:
         req = urllib.request.Request(API_URL, headers={"Accept": "application/vnd.github+json"})
         with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-        return {"tag_name": data["tag_name"], "zipball_url": data["zipball_url"]}
+        return {
+            "tag_name": data["tag_name"],
+            "zipball_url": data["zipball_url"],
+            "body": data.get("body") or "",
+        }
     except (urllib.error.URLError, TimeoutError, KeyError, ValueError, OSError):
         return None
+
+
+def release_page(version: str) -> str:
+    """The GitHub page for `version`, built locally rather than taken from
+    the API response."""
+    return f"https://github.com/{OWNER}/{REPO}/releases/tag/v{version}"
+
+
+def check_for_update() -> tuple[str, dict | None]:
+    """Is a newer release out? Returns (state, update).
+
+    state is "available" (update is {"version", "notes", "url",
+    "zipball_url"}), "current", or "failed" (couldn't reach GitHub).
+    Read-only: talks to the GitHub API and writes nothing to disk.
+    """
+    release = fetch_latest_release()
+    if release is None:
+        return "failed", None
+    if not is_newer(release["tag_name"], __version__):
+        return "current", None
+    version = release["tag_name"].strip().lstrip("vV")
+    return "available", {
+        "version": version,
+        "notes": format_release_notes(release["body"]),
+        "url": release_page(version),
+        "zipball_url": release["zipball_url"],
+    }
 
 
 def fetch_release_notes(version: str) -> str | None:
@@ -202,46 +235,28 @@ def pip_install() -> bool:
         return False
 
 
-def run_update_check(
-    on_status: Callable[[str | None], None], *, announce_current: bool = False
-) -> None:
-    """Check for and apply an update, reporting progress through `on_status`.
+def apply_update(update: dict, on_status: Callable[[str | None], None]) -> bool:
+    """Download and install `update` (from check_for_update). True on success.
 
-    Statuses: "checking for update", "downloading update", "installing
-    update", "relaunch to update". If nothing changed (already current, or a
-    step failed), calls `on_status(None)` — silent, for the automatic
-    startup check — unless `announce_current` is set, in which case it
-    reports "up to date" instead (used by the manual /update command, which
-    should always give feedback).
+    Only ever called from /update. Reports "downloading update" and
+    "installing update" through `on_status`. The new code takes effect once
+    the app relaunches.
     """
-    prune_stale()
-    _report(on_status, "checking for update")
-    release = fetch_latest_release()
-    if release is None or not is_newer(release["tag_name"], __version__):
-        on_status("up to date" if announce_current else None)
-        return
-
     _report(on_status, "downloading update")
     with tempfile.TemporaryDirectory(prefix="lattice_update_") as tmp:
         tmp_path = Path(tmp)
-        zip_path = download_zip(release["zipball_url"], tmp_path)
+        zip_path = download_zip(update["zipball_url"], tmp_path)
         if zip_path is None:
-            on_status(None)
-            return
+            return False
 
         _report(on_status, "installing update")
         extracted = extract_and_strip(zip_path, tmp_path / "extracted")
         if extracted is None:
-            on_status(None)
-            return
+            return False
 
         try:
             overlay(extracted, PROJECT_ROOT)
         except OSError:
-            # Same best-effort contract as every other step here: say nothing
-            # and leave the session alone rather than raising into the worker.
-            on_status(None)
-            return
-        pip_install()
-
-    _report(on_status, "relaunch to update")
+            return False
+    pip_install()
+    return True

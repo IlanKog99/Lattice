@@ -17,7 +17,8 @@ from textual.widgets.option_list import Option
 from . import APP_NAME, __version__, store, updater
 from .models import Grid
 from .screens import (
-    AddScreen, ConfirmScreen, ExportScreen, ImportScreen, MassScreen, RemoveScreen, WhatsNewScreen,
+    AddScreen, ConfirmScreen, ExportScreen, ImportScreen, MassScreen, RemoveScreen, UpdateScreen,
+    WhatsNewScreen,
 )
 from .widgets import CommandInput, FindInput, GridView
 
@@ -67,13 +68,14 @@ MAX_REVEAL_MINUTES = 600
 UNDO_DEPTH = 100
 
 # cli-spinners "dots2" and "bouncingBall" frame sets (80ms/frame in the
-# original spec) — saving uses dots2, the background updater uses the ball.
+# original spec) — saving uses dots2, /update uses the ball.
 DOTS_FRAMES = "⣾⣽⣻⢿⡿⣟⣯⣷"
 BALL_FRAMES = (
     "( ●    )", "(  ●   )", "(   ●  )", "(    ● )", "(     ●)",
     "(    ● )", "(   ●  )", "(  ●   )", "( ●    )", "(●     )",
 )
 SPINNER_INTERVAL = 0.08
+REMIND_INTERVAL = 24 * 60 * 60  # re-check (and re-offer) once a day
 
 _COMMANDS = {
     "add": AddScreen,
@@ -95,7 +97,7 @@ COMMAND_INFO = [
     ("undo", "Undo the last change"),
     ("visible", "Reveal values (e.g. /visible 5)"),
     ("hide", "Mask values now"),
-    ("update", "Check for an update now"),
+    ("update", "Install the latest update and relaunch"),
     ("reload", "Restart Lattice"),
     ("new", "Show what's new in this version"),
     ("quit", "Exit Lattice"),
@@ -133,7 +135,10 @@ class LatticeApp(App):
         self._update_frame = 0
         self._update_anim = None
         self._update_text = ""
-        self._update_ready = False
+        self._update_busy = False          # /update is running
+        self._update_note: str | None = None  # top-bar reminder after "Remind me later"
+        self._update_popup = False         # the update popup is on screen
+        self._update_ignored = False       # "Ignore": quiet until next launch
         self.restart_requested = False
 
     # --- layout --------------------------------------------------------
@@ -174,6 +179,7 @@ class LatticeApp(App):
             self.set_status("Empty store — use /add to begin, or seed from a file")
         self.set_interval(1.0, self._poll_clipboard)
         self.run_worker(self._check_for_update, thread=True)
+        self.set_interval(REMIND_INTERVAL, self._daily_update_check)
         if not self._whatsnew_seen():
             self.run_worker(self._fetch_and_show_whats_new, thread=True)
 
@@ -198,50 +204,107 @@ class LatticeApp(App):
         except OSError:
             pass
 
-    # --- background self-update -----------------------------------------
+    # --- update check (never installs on its own) --------------------------
     def _check_for_update(self) -> None:
-        updater.run_update_check(self._set_update_status)
+        """Worker: look for a newer release and offer it. Read-only."""
+        try:
+            updater.prune_stale()
+            state, update = updater.check_for_update()
+            if state == "available":
+                self.call_from_thread(self._offer_update, update)
+        except Exception:  # noqa: BLE001 - a background check must never crash the app
+            pass
 
-    def _check_for_update_manual(self) -> None:
-        updater.run_update_check(self._set_update_status, announce_current=True)
-
-    def cmd_update(self) -> None:
-        """/update — manual check; restarts instead if one's already staged."""
-        if self._update_ready:
-            self.request_restart()
+    def _daily_update_check(self) -> None:
+        if self._update_ignored or self._update_popup or self._update_busy:
             return
-        self.run_worker(self._check_for_update_manual, thread=True)
+        self.run_worker(self._check_for_update, thread=True)
+
+    def _offer_update(self, update: dict) -> None:
+        if self._update_popup or self._update_busy:
+            return
+        self._update_popup = True
+        self.push_screen(UpdateScreen(__version__, update), lambda choice: self._update_choice(choice, update))
+
+    def _update_choice(self, choice: str | None, update: dict) -> None:
+        self._update_popup = False
+        if choice == "later":
+            self._update_ignored = False
+            self._update_note = f"v{update['version']} available · run /update"
+        else:
+            self._update_ignored = True
+            self._update_note = None
+        self._show_update_status(None)
+
+    # --- /update: download, install, relaunch ---------------------------------
+    def cmd_update(self) -> None:
+        if self._update_busy:
+            self.set_status("An update is already in progress")
+            return
+        self._update_busy = True
+        self.run_worker(self._run_update, thread=True)
+
+    def _run_update(self) -> None:
+        try:
+            self._set_update_status("checking for update")
+            state, update = updater.check_for_update()
+            if state == "failed":
+                self._set_update_status("couldn't reach GitHub")
+            elif state == "current":
+                self._update_note = None
+                self._set_update_status("up to date")
+            elif updater.apply_update(update, self._set_update_status):
+                self._set_update_status("relaunching")
+                self.call_from_thread(self.request_restart)
+                return
+            else:
+                self._set_update_status("update failed")
+        except Exception:  # noqa: BLE001 - an exception escaping the worker kills the app
+            self._set_update_status("update failed")
+        self._update_busy = False
 
     def request_restart(self) -> None:
-        """/reload, and /update once an update is staged: relaunch in place."""
+        """/reload, and /update once installed: relaunch in place."""
         self.restart_requested = True
         self.exit()
 
     def _set_update_status(self, status: str | None) -> None:
         self.call_from_thread(self._show_update_status, status)
 
+    def _stop_update_spin(self) -> None:
+        if self._update_anim is not None:
+            self._update_anim.stop()
+            self._update_anim = None
+
     def _show_update_status(self, status: str | None) -> None:
+        """Top-bar update indicator. None shows the standing reminder (if
+        "Remind me later" set one) or nothing."""
         indicator = self.query_one("#update", Static)
         if status is None:
-            indicator.display = False
-            if self._update_anim is not None:
-                self._update_anim.stop()
-                self._update_anim = None
+            if self._update_busy:  # a stale hide timer must not cut into a running /update
+                return
+            self._stop_update_spin()
+            if self._update_note:
+                indicator.display = True
+                indicator.update(f"[#ff6a3d]↑[/] [#aeb8c4]{self._update_note}[/]")
+            else:
+                indicator.display = False
             return
         indicator.display = True
-        if status in ("relaunch to update", "up to date"):
-            if self._update_anim is not None:
-                self._update_anim.stop()
-                self._update_anim = None
-            self._update_ready = status == "relaunch to update"
+        if status in ("up to date", "relaunching"):
+            self._stop_update_spin()
             indicator.update(f"[#2a7d8c]✓[/] [#6b7787]{status}[/]")
-            if status == "up to date":
-                self.set_timer(2.0, lambda: setattr(indicator, "display", False))
+        elif status in ("update failed", "couldn't reach GitHub"):
+            self._stop_update_spin()
+            indicator.update(f"[#ff6a3d]✗[/] [#6b7787]{status}[/]")
+        else:
+            self._update_text = status
+            if self._update_anim is None:
+                self._update_anim = self.set_interval(SPINNER_INTERVAL, self._update_spin)
+            self._update_spin()
             return
-        self._update_text = status
-        if self._update_anim is None:
-            self._update_anim = self.set_interval(SPINNER_INTERVAL, self._update_spin)
-        self._update_spin()
+        if status != "relaunching":
+            self.set_timer(3.0, lambda: self._show_update_status(None))
 
     def _update_spin(self) -> None:
         frame = BALL_FRAMES[self._update_frame % len(BALL_FRAMES)]

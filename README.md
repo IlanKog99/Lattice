@@ -33,11 +33,17 @@ A cell can also be a **formula** instead of a plain value — flagged with a
 small `ƒ` marker and a teal rule. Copying one asks for a whole number and
 copies the computed result instead of a fixed string (see below).
 
-Lattice checks for updates in the background on launch — it never blocks
-what you're doing. If a newer version is out, a small indicator next to the
-app name walks through **checking for update** → **downloading update** →
-**installing update** → **relaunch to update**. That last one sticks around:
-close and reopen Lattice whenever you're ready, and the new version loads.
+Lattice never installs anything on its own. On launch, and once a day while
+it stays open, it only checks whether a newer version is out. If one is, a
+popup shows its change log and a link to the release on GitHub, with two
+buttons:
+
+- **Remind me later** — the popup comes back once a day, and the top bar
+  keeps a short note: *vX.Y.Z available · run /update*.
+- **Ignore** (or `Esc`) — no more reminders until the next launch.
+
+Run `/update` when you're ready: it downloads and installs the new version,
+then relaunches Lattice in the same window.
 Your grid is never touched by an update.
 
 ---
@@ -88,7 +94,7 @@ also click an entry.
 | `/visible` | Reveal **all** values for **1 minute**, then they re-mask automatically. (To peek a single cell instead, hold `V`.) |
 | `/visible N` | Reveal for `N` minutes instead (e.g. `/visible 5`). |
 | `/hide` | Re-mask values immediately, before the timer runs out. |
-| `/update` | Check for an update right now (same check that runs at launch). If one's already downloaded and waiting, this restarts Lattice instead to pick it up. |
+| `/update` | Download and install the latest version, then relaunch. Says *up to date* if there's nothing newer. This is the only way an update gets installed. |
 | `/reload` | Restart Lattice in place — same window, fresh process. |
 | `/new` | Show what's new in the version you're running. Pops up automatically, once, the first time you launch a version you haven't seen yet. `Enter` or `Esc` closes it. |
 
@@ -167,6 +173,6 @@ Lattice/
    ├─ dpapi.py          Windows DPAPI seal for the store
    ├─ vault_io.py       /export and /import file format
    ├─ formula.py        Safe INPT / + - * / evaluator for formula cells
-   ├─ updater.py        Background self-update from GitHub releases
+   ├─ updater.py        Update check, and /update install from GitHub releases
    └─ seed.py           One-shot importer from a plain-text table
 ```

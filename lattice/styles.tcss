@@ -373,7 +373,7 @@ FormulaPromptScreen {
 
 /* what's new — centered, ember accent like the everyday modals, a scroll
    area for longer release notes so the popup never outgrows the screen */
-WhatsNewScreen {
+WhatsNewScreen, UpdateScreen {
     align: center middle;
     background: #0a0d13 55%;
 }
@@ -392,4 +392,12 @@ WhatsNewScreen {
 }
 .whats-new-text {
     color: #c4ccd6;
+}
+
+/* update-available popup: reuses the What's New frame, plus a link line and buttons */
+.update-modal .prompt {
+    color: #aeb8c4;
+}
+.update-modal .confirm-row Button {
+    min-width: 20;
 }

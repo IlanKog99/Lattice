@@ -52,7 +52,7 @@ not add prompts to normal use.
 | `lattice/vault_io.py` | `/export` / `/import` file format (`LX1:`): passphrase → scrypt → AES-GCM. `cryptography` is imported lazily, so the app runs without it. `/import` also accepts the old unsealed export format, with no passphrase. |
 | `tests/` | stdlib `unittest` suite (`python -m unittest -v`). Dummy data only. |
 | `lattice/formula.py` | Safe `+ - * /` / `INPT` evaluator for formula cells, parsed with `ast` (never `eval()`). |
-| `lattice/updater.py` | Background self-updater: checks GitHub Releases against `__version__`, downloads and overlays a newer release, best-effort `pip install`. See Conventions below. |
+| `lattice/updater.py` | `check_for_update()` (read-only GitHub Releases check against `__version__`) and `apply_update()` (download, overlay, best-effort `pip install`; only ever run by `/update`). See Conventions below. |
 | `lattice/code_engine.py` | Time-stepped code generation for code cells (`{"kind": "code", "seed"}`): the cell stores a base32 seed, the 6-digit code is derived from seed + clock on every render and copy and is never stored. `Grid.normalise()` upgrades code cells saved under an older spec by shape, not by name. |
 | `lattice/seed.py` | One-shot importer from a pipe-delimited plain-text table. Reads the source at runtime; never embeds it. |
 
@@ -98,17 +98,25 @@ A cell holds either a plain string, or a **formula spec** — a
   live integer validation) and copies `prefix + result + suffix`. `/mass`
   only ever writes plain strings, so mass-updating a formula cell downgrades
   it back to a string.
-- Self-update: `on_mount` spawns `run_worker(self._check_for_update,
-  thread=True)`; `updater.run_update_check` runs entirely in that thread and
-  reports progress ("checking for update" → "downloading update" →
-  "installing update" → "relaunch to update") through a callback. Any
-  callback that touches a widget must go through `App.call_from_thread` —
-  see `_set_update_status`/`_show_update_status` in `app.py`. Every network,
-  zip, filesystem, and subprocess call in `updater.py` catches its own
-  failure and reports `None` (nothing shown) rather than raising; this is a
-  background nicety and must never crash or block the app — an exception
-  escaping the worker tears the whole app down with a traceback, it is not
-  merely logged. The overlay step
+- Updates are **never installed automatically** (that would let whoever
+  controls the release run code unasked). `on_mount` spawns
+  `run_worker(self._check_for_update, thread=True)`, which only calls
+  `updater.check_for_update()` (read-only: `"available" | "current" |
+  "failed"`) plus the local `prune_stale()`. A `REMIND_INTERVAL` (24 h)
+  interval re-runs the same check unless the user chose Ignore. A newer
+  release pushes `UpdateScreen` (change log, GitHub link built from
+  `OWNER`/`REPO`, "run /update"); remote text is rendered with
+  `markup=False`. "Remind me later" (default focus) keeps the daily popup
+  and sets the top-bar `#update` note; "Ignore"/Esc stops both until the
+  next launch. `/update` is the only install path: `_run_update` checks,
+  calls `updater.apply_update()` with spinner statuses, and on success
+  calls `request_restart()`; on failure it shows "update failed" and does
+  not restart. Any callback that touches a widget must go through
+  `App.call_from_thread`. Every network, zip, filesystem, and subprocess
+  call in `updater.py` catches its own failure and reports `None`/`False`
+  rather than raising, and the app workers wrap everything in
+  `try/except` — an exception escaping a worker tears the whole app down
+  with a traceback, it is not merely logged. The install step
   replaces the `lattice/` package wholesale: it writes every file in the
   release, then deletes any file under `lattice/` the release doesn't ship.
   Nothing outside `lattice/` is ever deleted, which keeps `grid.dat` (root,
@@ -116,12 +124,7 @@ A cell holds either a plain string, or a **formula spec** — a
   overwriting existing ones and prunes only after every copy landed, so a
   copy that dies partway still leaves an importable tree. At startup
   `prune_stale()` also removes modules older releases dropped (matched by
-  content hash in `_RETIRED`) and bytecode with no source. New code on
-  disk only takes effect on the *next* launch, since the running process
-  already has the old modules loaded in memory. `/update` runs the same
-  check on demand (`announce_current=True` this time, so it reports "up to
-  date" instead of staying silent) and restarts instead of re-checking if
-  `_update_ready` is already set from a prior background run. `/reload`
+  content hash in `_RETIRED`) and bytecode with no source. `/reload`
   always restarts. Both go through `App.request_restart()` (sets
   `restart_requested`, calls `self.exit()`); `lattice.app.main()` checks
   that flag *after* `App.run()` returns and, if set, replaces the process
@@ -137,7 +140,8 @@ A cell holds either a plain string, or a **formula spec** — a
 placeholder data only and real DPAPI calls (Windows-only suite). Any test that
 touches the store patches `store.DATA_FILE` to a temp dir first, and app tests
 patch out the update check and What's New popup, so the real store and the
-network are never touched.
+network are never touched. `tests/test_update_flow.py` mocks the check and
+the install and asserts launch never downloads or installs.
 
 ## Run
 

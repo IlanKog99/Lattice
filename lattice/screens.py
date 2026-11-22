@@ -623,6 +623,61 @@ class WhatsNewScreen(ModalScreen):
             self.dismiss()
 
 
+UPDATE_KEYS = _legend([("←→ / a d", "switch"), ("enter", "select"), ("esc", "ignore")])
+
+
+class UpdateScreen(ModalScreen):
+    """A newer release exists: changelog, where to read about it, and how to
+    install it (/update). Nothing is downloaded from here.
+
+    Dismisses with "later" (remind daily, keep a top-bar note) or "ignore"
+    (say nothing more until the next launch). Esc means ignore.
+    """
+
+    def __init__(self, current: str, update: dict) -> None:
+        super().__init__()
+        self._current = current
+        self._update = update
+
+    def compose(self):
+        with Vertical(classes="modal whats-new update-modal"):
+            yield Static(f"✦  Update available: v{self._update['version']}", classes="modal-title")
+            yield Static(
+                f"You're on v{self._current}. Read about it on GitHub:\n"
+                f"{self._update['url']}\n"
+                "When you're ready, run /update to install it and relaunch.",
+                classes="prompt",
+                markup=False,
+            )
+            with VerticalScroll(classes="whats-new-body"):
+                # Release text comes from the network: never parse it as markup.
+                yield Static(self._update["notes"], classes="whats-new-text", markup=False)
+            with Horizontal(classes="confirm-row"):
+                yield Button("Remind me later", id="later")
+                yield Button("Ignore", id="ignore")
+            yield Static(UPDATE_KEYS, classes="modal-keys")
+
+    def on_mount(self) -> None:
+        self.query_one("#later", Button).focus()
+
+    def on_key(self, event) -> None:
+        key = event.key
+        if key in ("left", "right", "a", "d"):
+            event.stop()
+            later = self.query_one("#later", Button)
+            (self.query_one("#ignore", Button) if later.has_focus else later).focus()
+        elif key == "enter":
+            event.stop()
+            focused = self.focused
+            self.dismiss("ignore" if (focused is not None and focused.id == "ignore") else "later")
+        elif key == "escape":
+            event.stop()
+            self.dismiss("ignore")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id)
+
+
 def default_export_path() -> str:
     return str(Path.home() / "Documents" / f"lattice-export-{date.today():%Y-%m-%d}.lattice")
 

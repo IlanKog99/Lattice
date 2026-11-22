@@ -5,5 +5,5 @@ encoded and sealed to the current Windows user (DPAPI) and is only ever
 expanded into plain text inside memory while the app is running.
 """
 
-__version__ = "1.5.0"
+__version__ = "1.6.0"
 APP_NAME = "Lattice"
